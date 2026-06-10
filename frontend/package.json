@@ -1,0 +1,26 @@
+{
+  "name": "fmcg-forecast-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "react-scripts": "5.0.1",
+    "chart.js": "^4.4.7",
+    "react-chartjs-2": "^5.2.0",
+    "axios": "^1.7.9",
+    "react-dropzone": "^14.3.5",
+    "react-hot-toast": "^2.4.1",
+    "file-saver": "^2.0.5",
+    "lucide-react": "^0.460.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  }
+}
