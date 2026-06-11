@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout/Layout';
-import PolicyDashboard from './pages/PolicyDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -36,7 +35,6 @@ function AppRoutes() {
         <Route path="upload" element={<Upload />} />
         <Route path="forecast" element={<Forecast />} />
         <Route path="scenarios" element={<Scenarios />} />
-        <Route path="policy-dashboard" element={<PolicyDashboard />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
