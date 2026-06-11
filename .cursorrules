@@ -1,0 +1,6 @@
+# .cursorrules – Antigravity interaction policy
+acceptance_prompt: true          # always request accept/reject before any code change
+follow_up_questions: 3           # generate exactly three follow‑up items after each task
+confirm_repo_modifications: true # ask before any git/npm/CLI operation that mutates repo
+artifact_directory: true         # store all generated artifacts in the brain/artifact folder
+markdown_style: github           # use GitHub‑flavored markdown with alerts
