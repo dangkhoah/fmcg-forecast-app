@@ -16,7 +16,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // Only redirect to login if the error is 401 AND the user is not already on the login page.
+    // This allows the login form to handle its own 401 errors (e.g., bad credentials).
+    const isLoginPage = window.location.pathname.includes('/login');
+    if (err.response?.status === 401 && !isLoginPage) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
@@ -48,6 +51,10 @@ export const forecast = {
   history: () => api.get('/forecast/history'),
   createScenario: (data) => api.post('/forecast/scenarios', data),
   listScenarios: () => api.get('/forecast/scenarios'),
+  getPolicy: () => api.get('/forecast/policy'),
+  renameHistory: (id, name) => api.patch(`/forecast/${id}?name=${encodeURIComponent(name)}`),
+  deleteHistory: (id) => api.delete(`/forecast/${id}`),
+  deleteAllHistory: () => api.delete('/forecast/history/clear'),
 };
 
 export const exportApi = {

@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Text, ForeignKey, func
+from sqlalchemy import String, Text, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
+from app.models.custom_types import UTCDateTime
 
 
 class Dataset(Base):
@@ -14,4 +15,4 @@ class Dataset(Base):
     file_path: Mapped[str] = mapped_column(String)
     row_count: Mapped[int] = mapped_column(nullable=True)
     columns_json: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

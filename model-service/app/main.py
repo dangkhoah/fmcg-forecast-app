@@ -1,18 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Literal
 
 from app.models import ForecastEngine
 
 from pathlib import Path
 import logging
 
-# Configure logging to write to a file
-logging.basicConfig(
-    filename='model_service.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging to write to a file. In production, you might want to use a more robust logging configuration --> already used in D:\Apps\fmcg-forecast-app\model-service\logging.ini
+# logging.basicConfig(
+#     filename='model_service.log',
+#     level=logging.INFO,
+#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# )
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FMCG Forecast Model Service")
@@ -33,6 +34,7 @@ class PredictRequest(BaseModel):
     forecast_periods: int = 12
     seasonality_period: int = 12
     confidence_level: float = 0.95
+    aggregation: Literal["mean", "sum"] | None = "mean"
 
 
 class PredictResponse(BaseModel):
@@ -41,6 +43,9 @@ class PredictResponse(BaseModel):
     lower_bound: list[float] | None = None
     upper_bound: list[float] | None = None
     records: list[dict] | None = None
+    cached: bool = False
+    training_time: float = 0.0
+    mape: float | None = None
 
 
 @app.on_event("startup")
@@ -70,6 +75,7 @@ async def predict(payload: PredictRequest):
             forecast_periods=payload.forecast_periods,
             seasonality_period=payload.seasonality_period,
             confidence_level=payload.confidence_level,
+            aggregation=payload.aggregation,
         )
         logger.info(f"Prediction successful: {result}")
     except Exception as e:

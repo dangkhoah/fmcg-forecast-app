@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Boolean, func
+from sqlalchemy import String, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
+from app.models.custom_types import UTCDateTime
 
 
 class User(Base):
@@ -13,4 +14,4 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String)
     full_name: Mapped[str] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

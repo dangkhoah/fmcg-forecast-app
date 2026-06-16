@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     FORECAST_API_URL: str = "http://localhost:8001/predict"
+    MODEL_SERVICE_URL: str = "http://localhost:8001"
     UPLOAD_DIR: str = str(ROOT_DIR / "uploads")
+    MODEL_SERVICE_TIMEOUT: int = 120
+    LOG_SQL: bool = True
 
     class Config:
         env_file = ".env"

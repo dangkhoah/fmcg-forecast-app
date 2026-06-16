@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { forecast as forecastApi } from '../services/api';
 
 const PolicyDashboard = () => {
   const [rules, setRules] = useState([]);
 
   useEffect(() => {
-    // Fetch the .cursorrules file from the repo root
-    fetch('/.cursorrules')
-      .then((res) => res.text())
-      .then((text) => {
+    console.log('Rules state changed:', rules);
+  }, [rules]);
+
+  useEffect(() => {
+    // Fetch the policy from the backend API
+    forecastApi.getPolicy()
+      .then((res) => {
+        const text = res.data.content;
         const parsed = text
           .split('\n')
           .filter((line) => line && !line.startsWith('#'))
@@ -15,9 +20,13 @@ const PolicyDashboard = () => {
             const [key, ...rest] = line.split(':');
             return { key: key.trim(), value: rest.join(':').trim() };
           });
+        console.log('Parsed rules from file:', parsed);
         setRules(parsed);
       })
-      .catch(() => setRules([]));
+      .catch((err) => {
+        console.error('Error loading .cursorrules:', err.message);
+        setRules([]);
+      });
   }, []);
 
   return (

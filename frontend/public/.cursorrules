@@ -1,0 +1,10 @@
+# .cursorrules – Antigravity interaction policy
+# acceptance_prompt: true          # always request accept/reject before any code change
+acceptance_prompt_ui: buttons    # display Accept/Reject buttons for the prompt
+accept_reject_prompt: true          # show a Accept button and Reject button after a Review step (UI will show Accept & Reject buttons)
+acceptance_prompt_actions: accept,revert  # enable both Accept and Revert options in the UI
+follow_up_questions: 3           # generate exactly three follow‑up items after each task
+confirm_repo_modifications: true # ask before any git/npm/CLI operation that mutates repo
+artifact_directory: true         # store all generated artifacts in the brain/artifact folder
+markdown_style: github           # use GitHub‑flavored markdown with alerts
+prompts_to_try: true          # enable suggestion prompts like Gemini Code Assist

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import time
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import LabelEncoder
 
@@ -19,6 +20,8 @@ class ForecastEngine:
         self.prod_price = None
         self.date_week = None
         self.best_model_name = "ExtraTrees"
+        self._last_trained_file = None
+        self.mape = None
 
     def load_reference_data(self, ref_dir: str = None):
         if ref_dir is None:
@@ -111,9 +114,29 @@ class ForecastEngine:
         return features
 
     def train(self, file_path: str):
+        # Simple caching: skip training if the model is already loaded with this dataset
+        if self.model is not None and self._last_trained_file == file_path:
+            return False
+
         data = self._prepare_training_data(file_path)
         X = data[self.feature_columns]
         y = data["sales"]
+
+        # Calculate validation MAPE
+        try:
+            from sklearn.model_selection import train_test_split
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            eval_model = ExtraTreesRegressor(n_estimators=50, random_state=42, n_jobs=-1)
+            eval_model.fit(X_train, y_train)
+            val_preds = eval_model.predict(X_val)
+            non_zero_mask = y_val != 0
+            if np.sum(non_zero_mask) > 0:
+                self.mape = float(np.mean(np.abs((y_val[non_zero_mask] - val_preds[non_zero_mask]) / y_val[non_zero_mask])))
+            else:
+                self.mape = 0.0
+        except Exception as e:
+            print(f"Error calculating MAPE: {e}")
+            self.mape = None
 
         self.model = ExtraTreesRegressor(
             n_estimators=100,
@@ -122,6 +145,8 @@ class ForecastEngine:
             n_jobs=-1,
         )
         self.model.fit(X, y)
+        self._last_trained_file = file_path
+        return True
 
     def _generate_future_records(self, num_periods: int) -> pd.DataFrame:
         records = []
@@ -155,8 +180,11 @@ class ForecastEngine:
         forecast_periods: int = 12,
         seasonality_period: int = 12,
         confidence_level: float = 0.95,
+        aggregation: str = "mean",
     ) -> dict:
-        self.train(file_path)
+        start_train = time.time()
+        is_trained = self.train(file_path)
+        train_duration = time.time() - start_train if is_trained else 0
 
         future = self._generate_future_records(forecast_periods)
         if future.empty:
@@ -180,15 +208,23 @@ class ForecastEngine:
                 "prediction": round(float(row["sales_prediction"]), 2)
             })
 
-        # Aggregated data for the UI Chart (Mean sales per date)
-        chart_agg = future.groupby("date")["sales_prediction"].mean().reset_index() if not future.empty else pd.DataFrame()
+        # Aggregated data for the UI Chart
+        if not future.empty:
+            group = future.groupby("date")["sales_prediction"]
+            chart_agg = group.sum().reset_index() if aggregation == "sum" else group.mean().reset_index()
+        else:
+            chart_agg = pd.DataFrame()
+            
         if chart_agg.empty:
-            return {"dates": [], "values": [], "records": records}
+            return {"dates": [], "values": [], "records": records, "mape": self.mape}
 
         chart_agg["date_str"] = chart_agg["date"].dt.strftime("%Y-%m-%d")
 
         return {
             "dates": chart_agg["date_str"].tolist(),
             "values": chart_agg["sales_prediction"].round(2).tolist(),
-            "records": records # This stores the "multiple records"
+            "records": records, # This stores the "multiple records"
+            "cached": not is_trained,
+            "training_time": round(train_duration, 2),
+            "mape": self.mape
         }

@@ -12,7 +12,7 @@ from app.models.forecast import ForecastResult
 from app.services.auth import get_current_user
 from app.services.export import export_csv, export_excel
 
-router = APIRouter(prefix="/api/export", tags=["export"])
+router = APIRouter(prefix="/export", tags=["export"])
 
 
 @router.get("/{forecast_id}")

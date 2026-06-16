@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Text, ForeignKey, Float, func
+from sqlalchemy import String, Text, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
-
+from app.models.custom_types import UTCDateTime
 
 class ForecastResult(Base):
     __tablename__ = "forecast_results"
@@ -14,7 +14,7 @@ class ForecastResult(Base):
     dataset_id: Mapped[str] = mapped_column(String, ForeignKey("datasets.id"))
     parameters_json: Mapped[str] = mapped_column(Text)
     result_json: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
 
 
 class ForecastScenario(Base):
@@ -26,4 +26,4 @@ class ForecastScenario(Base):
     name: Mapped[str] = mapped_column(String)
     parameters_json: Mapped[str] = mapped_column(Text)
     result_json: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

@@ -36,7 +36,9 @@ function AppRoutes() {
         <Route path="upload" element={<Upload />} />
         <Route path="forecast" element={<Forecast />} />
         <Route path="scenarios" element={<Scenarios />} />
-        <Route path="policy-dashboard" element={<PolicyDashboard />} />
+        <Route path="policy" element={<PolicyDashboard />} />
+        {/* <Route path="history" element={<Navigate to="/forecast" replace />} /> */}
+        <Route path="history" element={<Navigate to="/forecast#history" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

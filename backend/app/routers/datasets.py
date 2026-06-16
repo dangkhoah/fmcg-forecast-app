@@ -13,7 +13,7 @@ from app.schemas.dataset import DatasetResponse, DatasetPreview
 from app.services.auth import get_current_user
 from app.utils.csv_parser import parse_file
 
-router = APIRouter(prefix="/api/datasets", tags=["datasets"])
+router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 
 @router.post("/upload", response_model=DatasetResponse, status_code=201)
