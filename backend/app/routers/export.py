@@ -38,11 +38,11 @@ async def export_forecast(
         values = data.get("values", [])
         lower = data.get("lower_bound")
         upper = data.get("upper_bound")
-        records = data.get("records")
+        detailed_records = data.get("detailed_records")
 
         if format == "csv":
-            return export_csv(dates, values, lower, upper, records)
-        return export_excel(dates, values, lower, upper, records)
+            return export_csv(dates, values, lower, upper, detailed_records)
+        return export_excel(dates, values, lower, upper, detailed_records)
     except Exception as e:
         # Extract detailed traceback information
         exc_type, exc_value, exc_traceback = sys.exc_info()

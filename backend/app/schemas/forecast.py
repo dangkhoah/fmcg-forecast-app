@@ -7,7 +7,12 @@ class ForecastRequest(BaseModel):
     forecast_periods: int = 12
     seasonality_period: int = 12
     confidence_level: float = 0.95
+    model_type: str = "ExtraTrees"
+    frequency: str | None = None
+    force_retrain: bool = False
     aggregation: str | None = None
+    date_format: str | None = None
+    original_filename: str | None = None # Add this line
     additional_params: dict | None = None
 
 
@@ -26,6 +31,7 @@ class ForecastResponse(BaseModel):
     parameters: dict | None = None
     cached: bool = False
     training_time: float | None = None
+    detected_freq: str | None = None
     mape: float | None = None
 
 

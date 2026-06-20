@@ -4,10 +4,9 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import auth, datasets, forecast, export
+from app.routers import auth, datasets, forecast, export # , policy
 from app.config import settings
-from app.services.forecast_client import close_client
-# from app.services.forecast_client import verify_model_service_connectivity
+from app.services.forecast_client import close_client #, verify_model_service_connectivity
 
 
 @asynccontextmanager
@@ -18,9 +17,16 @@ async def lifespan(app: FastAPI):
     if not settings.LOG_SQL:
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
         
+    # Optional: Verify model service is up on startup
     # await verify_model_service_connectivity()
-    yield
-    await close_client()
+    
+    try:
+        yield
+    finally:
+        # This block runs when the application is shutting down
+        logging.info("Shutting down: Closing HTTPX forecast client...")
+        await close_client()
+        logging.info("HTTPX client closed successfully.")
 
 
 app = FastAPI(title="FMCG Sales Forecast API", lifespan=lifespan)
@@ -43,6 +49,7 @@ api_router.include_router(auth.router)
 api_router.include_router(datasets.router)
 api_router.include_router(forecast.router)
 api_router.include_router(export.router)
+# api_router.include_router(policy.router)
 
 app.include_router(api_router)
 

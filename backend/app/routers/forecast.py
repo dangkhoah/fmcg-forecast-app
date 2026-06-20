@@ -12,7 +12,7 @@ from app.models.dataset import Dataset
 from app.models.forecast import ForecastResult, ForecastScenario
 from app.schemas.forecast import ForecastRequest, ForecastResponse, ScenarioCreate, ScenarioResponse
 from app.services.auth import get_current_user
-from app.services.forecast_client import call_forecast_model
+from app.services.forecast_client import call_forecast_model, get_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 # Change from prefix="/api/forecast" to:
 router = APIRouter(prefix="/forecast", tags=["forecast"])
 
+@router.post("/clear-cache")
+async def clear_model_cache(current_user: User = Depends(get_current_user)):
+    """
+    Proxies the request to clear the cache on the model service.
+    """
+    client = get_client()
+    clear_cache_url = str(settings.FORECAST_API_URL).replace("/predict", "/clear-cache")
+    try:
+        resp = await client.post(clear_cache_url, timeout=30.0)
+        resp.raise_for_status()
+        logger.info(f"User {current_user.id} cleared the model service cache.")
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to clear model cache: {str(e)}")
 
 @router.post("/", response_model=ForecastResponse)
 async def run_forecast(
@@ -44,8 +58,12 @@ async def run_forecast(
         "forecast_periods": payload.forecast_periods,
         "seasonality_period": payload.seasonality_period,
         "confidence_level": payload.confidence_level,
-        # "force_retrain": getattr(payload, "force_retrain", False),
+        "model_type": payload.model_type,
+        "frequency": payload.frequency,
+        "force_retrain": payload.force_retrain,
         "aggregation": payload.aggregation, # already included in additional_params if provided
+        "date_format": payload.date_format,
+        "original_filename": dataset.filename, # Pass the original filename
         **(payload.additional_params or {}),
     }
 
@@ -72,23 +90,19 @@ async def run_forecast(
     await db.commit()
     await db.refresh(forecast)
 
-    return ForecastResponse(
-        id=forecast.id,
-        name=getattr(forecast, "name", None),
-        dataset_id=payload.dataset_id,
-        dataset_name=dataset.filename,
-        dataset_row_count=dataset.row_count,
-        dates=model_result.get("dates", []),
-        values=model_result.get("values", []),
-        lower_bound=model_result.get("lower_bound"),
-        upper_bound=model_result.get("upper_bound"),
-        detailed_records=model_result.get("records"),
-        created_at=forecast.created_at,
-        parameters=payload.model_dump(),
-        cached=model_result.get("cached", False),
-        training_time=model_result.get("training_time"),
-        mape=model_result.get("mape"),
-    )
+    # Dynamic mapping: Merge DB info with all fields returned by the model service
+    response_data = {
+        "id": forecast.id,
+        "name": getattr(forecast, "name", None),
+        "dataset_id": payload.dataset_id,
+        "dataset_name": dataset.filename,
+        "dataset_row_count": dataset.row_count,
+        "created_at": forecast.created_at,
+        "parameters": payload.model_dump(),
+        **model_result
+    }
+
+    return ForecastResponse(**response_data)
 
 
 @router.post("/scenarios", response_model=ScenarioResponse)
@@ -154,23 +168,20 @@ async def forecast_history(
     for f, dataset_id, filename, row_count in forecasts:
         r = json.loads(f.result_json)
         p = json.loads(f.parameters_json) if f.parameters_json else {}
-        responses.append(ForecastResponse(
-            id=f.id,
-            name=getattr(f, "name", None),
-            dataset_id=dataset_id,
-            dataset_name=filename,
-            dataset_row_count=row_count,
-            dates=r.get("dates", []),
-            values=r.get("values", []),
-            lower_bound=r.get("lower_bound"),
-            upper_bound=r.get("upper_bound"),
-            detailed_records=r.get("records"),
-            created_at=f.created_at,
-            parameters=p,
-            cached=r.get("cached", False),
-            training_time=r.get("training_time"),
-            mape=r.get("mape"),
-        ))
+        
+        # Dynamic unpacking for history
+        hist_data = {
+            "id": f.id,
+            "name": getattr(f, "name", None),
+            "dataset_id": dataset_id,
+            "dataset_name": filename,
+            "dataset_row_count": row_count,
+            "created_at": f.created_at,
+            "parameters": p,
+            **r
+        }
+            
+        responses.append(ForecastResponse(**hist_data))
     return responses
 
 @router.delete("/history/clear")
@@ -211,23 +222,19 @@ async def rename_forecast(
 
     # Manually construct the response to satisfy the schema requirements
     r = json.loads(forecast.result_json)
-    return ForecastResponse(
-        id=forecast.id,
-        name=forecast.name,
-        dataset_id=dataset_id,
-        dataset_name=filename,
-        dataset_row_count=row_count,
-        dates=r.get("dates", []),
-        values=r.get("values", []),
-        lower_bound=r.get("lower_bound"),
-        upper_bound=r.get("upper_bound"),
-        detailed_records=r.get("records"),
-        created_at=forecast.created_at,
-        parameters=json.loads(forecast.parameters_json) if forecast.parameters_json else {},
-        cached=r.get("cached", False),
-        training_time=r.get("training_time"),
-        mape=r.get("mape"),
-    )
+    rename_data = {
+        "id": forecast.id,
+        "name": forecast.name,
+        "dataset_id": dataset_id,
+        "dataset_name": filename,
+        "dataset_row_count": row_count,
+        "created_at": forecast.created_at,
+        "parameters": json.loads(forecast.parameters_json) if forecast.parameters_json else {},
+        **r
+    }
+
+    return ForecastResponse(**rename_data)
+
 
 @router.delete("/{forecast_id}")
 async def delete_forecast(

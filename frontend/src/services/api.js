@@ -55,6 +55,7 @@ export const forecast = {
   renameHistory: (id, name) => api.patch(`/forecast/${id}?name=${encodeURIComponent(name)}`),
   deleteHistory: (id) => api.delete(`/forecast/${id}`),
   deleteAllHistory: () => api.delete('/forecast/history/clear'),
+  clearCache: () => api.post('/forecast/clear-cache'),
 };
 
 export const exportApi = {

@@ -1,60 +1,130 @@
-﻿[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "POST /api/auth/login HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "OPTIONS /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "OPTIONS /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "OPTIONS /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:43] [Backend] INFO:     127.0.0.1:58357 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:25:45] [Backend] INFO:     127.0.0.1:56015 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:47] [Backend] INFO:     127.0.0.1:58357 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:49] [Backend] INFO:     127.0.0.1:58357 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:25:49] [Backend] INFO:     127.0.0.1:56015 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:51] [Backend] INFO:     127.0.0.1:50845 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:25:51] [Backend] INFO:     127.0.0.1:58357 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:25:53] [Backend] INFO:     127.0.0.1:50845 - "OPTIONS /api/forecast/ HTTP/1.1" 200 OK
-[2026-06-14 17:26:01] [ModelService] INFO:     127.0.0.1:58527 - "POST /predict HTTP/1.1" 200 OK
-[2026-06-14 17:26:01] [Backend] INFO:     127.0.0.1:58357 - "POST /api/forecast/ HTTP/1.1" 200 OK
-[2026-06-14 17:29:59] [Backend] INFO:     127.0.0.1:59475 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 17:29:59] [Backend] INFO:     127.0.0.1:59475 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 17:29:59] [Backend] INFO:     127.0.0.1:59475 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:30:01] [Backend] INFO:     127.0.0.1:59475 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:30:01] [Backend] INFO:     127.0.0.1:49349 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:30:02] [Backend] INFO:     127.0.0.1:63780 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:30:16] [Backend] INFO:     127.0.0.1:60568 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:30:17] [Backend] INFO:     127.0.0.1:60568 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:30:17] [Backend] INFO:     127.0.0.1:65316 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 17:30:18] [Backend] INFO:     127.0.0.1:51027 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 17:30:23] [ModelService] INFO:     127.0.0.1:51029 - "POST /predict HTTP/1.1" 200 OK
-[2026-06-14 17:30:23] [Backend] INFO:     127.0.0.1:51027 - "POST /api/forecast/ HTTP/1.1" 200 OK
-[2026-06-14 22:05:52] [Backend] INFO:     127.0.0.1:59016 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:05:52] [Backend] INFO:     127.0.0.1:53568 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:05:52] [Backend] INFO:     127.0.0.1:53568 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:05:53] [Backend] INFO:     127.0.0.1:53568 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:05:53] [Backend] INFO:     127.0.0.1:53568 - "OPTIONS /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:05:53] [Backend] INFO:     127.0.0.1:59016 - "OPTIONS /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:05:53] [Backend] INFO:     127.0.0.1:49356 - "OPTIONS /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:05:56] [Backend] INFO:     127.0.0.1:49356 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:05:56] [Backend] INFO:     127.0.0.1:59016 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:05:59] [Backend] INFO:     127.0.0.1:53568 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:05:59] [Backend] INFO:     127.0.0.1:49356 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "POST /api/auth/login HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "OPTIONS /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "GET /api/auth/me HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "OPTIONS /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:58667 - "OPTIONS /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:59968 - "OPTIONS /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:27] [Backend] INFO:     127.0.0.1:58667 - "OPTIONS /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:29] [Backend] INFO:     127.0.0.1:59968 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:30] [Backend] INFO:     127.0.0.1:58667 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:31] [Backend] INFO:     127.0.0.1:56088 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:32] [Backend] INFO:     127.0.0.1:59968 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:35] [Backend] INFO:     127.0.0.1:59968 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:36] [Backend] INFO:     127.0.0.1:56088 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:37] [Backend] INFO:     127.0.0.1:64827 - "GET /api/datasets/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:37] [Backend] INFO:     127.0.0.1:59968 - "GET /api/forecast/history HTTP/1.1" 200 OK
-[2026-06-14 22:07:39] [Backend] INFO:     127.0.0.1:59968 - "OPTIONS /api/forecast/ HTTP/1.1" 200 OK
-[2026-06-14 22:07:43] [ModelService] INFO:     127.0.0.1:55235 - "POST /predict HTTP/1.1" 200 OK
-[2026-06-14 22:07:43] [Backend] INFO:     127.0.0.1:59968 - "POST /api/forecast/ HTTP/1.1" 200 OK
+﻿2026-06-19 21:44:05 - [Model-Service] - INFO:    Will watch for changes in these directories: ['D:\\Apps\\fmcg-forecast-app\\model-service']
+2026-06-19 21:44:05 - [Model-Service] - INFO:    Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+2026-06-19 21:44:05 - [Model-Service] - INFO:    Started reloader process [79860] using WatchFiles
+2026-06-19 21:44:05 - [Backend] - INFO:    Will watch for changes in these directories: ['D:\\Apps\\fmcg-forecast-app\\backend\\app']
+2026-06-19 21:44:05 - [Backend] - INFO:    Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-06-19 21:44:05 - [Backend] - INFO:    Started reloader process [77900] using WatchFiles
+2026-06-19 21:44:07 - [Backend] - INFO:    Started server process [75264]
+2026-06-19 21:44:07 - [Backend] - INFO:    Waiting for application startup.
+2026-06-19 21:44:07 - [Backend] - INFO:    Application startup complete.
+2026-06-19 21:44:08 - [Model-Service] - INFO:    Started server process [80876]
+2026-06-19 21:44:08 - [Model-Service] - INFO:    Waiting for application startup.
+2026-06-19 21:44:08 - [Model-Service] - INFO:    Initialized persistent cache at D:\Apps\fmcg-forecast-app\model-service\cache
+2026-06-19 21:44:08 - [Model-Service] - INFO:    Application startup complete.
+2026-06-19 21:47:04 - [Backend] - INFO:    127.0.0.1:55572 - "OPTIONS /api/auth/login HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:55572 - "POST /api/auth/login HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:55572 - "OPTIONS /api/auth/me HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:55572 - "GET /api/auth/me HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:55572 - "OPTIONS /api/datasets/ HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:51474 - "OPTIONS /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:05 - [Backend] - INFO:    127.0.0.1:51474 - "OPTIONS /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:07 - [Backend] - INFO:    127.0.0.1:55572 - "GET /api/datasets/ HTTP/1.1" 200
+2026-06-19 21:47:07 - [Backend] - INFO:    127.0.0.1:51474 - "GET /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:08 - [Backend] - INFO:    127.0.0.1:55572 - "GET /api/datasets/ HTTP/1.1" 200
+2026-06-19 21:47:08 - [Backend] - INFO:    127.0.0.1:57914 - "GET /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:10 - [Backend] - INFO:    127.0.0.1:55572 - "GET /api/datasets/ HTTP/1.1" 200
+2026-06-19 21:47:10 - [Backend] - INFO:    127.0.0.1:51474 - "GET /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:11 - [Backend] - INFO:    127.0.0.1:57914 - "GET /api/datasets/ HTTP/1.1" 200
+2026-06-19 21:47:12 - [Backend] - INFO:    127.0.0.1:55572 - "GET /api/forecast/history HTTP/1.1" 200
+2026-06-19 21:47:16 - [Backend] - INFO:    127.0.0.1:55572 - "OPTIONS /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:47:18 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:47:18 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=4.26s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:47:18 - [Backend] - INFO:    127.0.0.1:53351 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:51:16 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:51:16 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=20.37s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:51:16 - [Backend] - INFO:    127.0.0.1:63871 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:53:23 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:53:23 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=22.66s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:53:23 - [Backend] - INFO:    127.0.0.1:57571 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:54:05 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:54:05 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=4.26s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:54:05 - [Backend] - INFO:    127.0.0.1:60567 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:55:35 - [Model-Service] - WARNING:    WatchFiles detected changes in 'app\models.py'. Reloading...
+2026-06-19 21:56:12 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:56:12 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=4.26s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:56:12 - [Backend] - INFO:    127.0.0.1:49668 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:56:18 - [Model-Service] - INFO:    Shutting down
+2026-06-19 21:56:18 - [Model-Service] - INFO:    Waiting for application shutdown.
+2026-06-19 21:56:18 - [Model-Service] - INFO:    Application shutdown complete.
+2026-06-19 21:56:18 - [Model-Service] - INFO:    Finished server process [80876]
+2026-06-19 21:56:22 - [Model-Service] - INFO:    Started server process [66156]
+2026-06-19 21:56:22 - [Model-Service] - INFO:    Waiting for application startup.
+2026-06-19 21:56:22 - [Model-Service] - INFO:    Initialized persistent cache at D:\Apps\fmcg-forecast-app\model-service\cache
+2026-06-19 21:56:22 - [Model-Service] - INFO:    Application startup complete.
+2026-06-19 21:56:56 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:56:57 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=4.26s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:56:57 - [Backend] - INFO:    127.0.0.1:59222 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:57:32 - [Backend] - INFO:    127.0.0.1:54541 - "OPTIONS /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:58:33 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:58:34 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=18.77s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:58:34 - [Backend] - INFO:    127.0.0.1:54541 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 21:59:21 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 21:59:21 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=22.66s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 21:59:21 - [Backend] - INFO:    127.0.0.1:53861 - "POST /api/forecast/ HTTP/1.1" 200
+2026-06-19 22:02:39 - [Model-Service] - WARNING:    WatchFiles detected changes in 'app\models.py'. Reloading...
+2026-06-19 22:02:41 - [Model-Service] - INFO:    Shutting down
+2026-06-19 22:02:41 - [Model-Service] - INFO:    Waiting for application shutdown.
+2026-06-19 22:02:41 - [Model-Service] - INFO:    Application shutdown complete.
+2026-06-19 22:02:41 - [Model-Service] - INFO:    Finished server process [66156]
+2026-06-19 22:02:47 - [Model-Service] - INFO:    Started server process [80496]
+2026-06-19 22:02:47 - [Model-Service] - INFO:    Waiting for application startup.
+2026-06-19 22:02:47 - [Model-Service] - INFO:    Initialized persistent cache at D:\Apps\fmcg-forecast-app\model-service\cache
+2026-06-19 22:02:48 - [Model-Service] - INFO:    Application startup complete.
+2026-06-19 22:53:36 - [Backend] - INFO:    192.168.1.192:55629 - "GET / HTTP/1.1" 404
+2026-06-19 22:53:52 - [Backend] - INFO:    ('192.168.1.192', 58272) - "WebSocket /" 403
+2026-06-19 22:53:52 - [Backend] - INFO:    connection rejected (403 Forbidden)
+2026-06-19 22:53:52 - [Backend] - INFO:    connection closed
+2026-06-19 22:53:53 - [Backend] - INFO:    192.168.1.192:58274 - "GET /loginMsg.js HTTP/1.1" 404
+2026-06-19 22:53:53 - [Backend] - INFO:    192.168.1.192:58275 - "GET /cgi/get.cgi?cmd=home_login HTTP/1.1" 404
+2026-06-19 22:53:54 - [Backend] - INFO:    192.168.1.192:58278 - "POST / HTTP/1.1" 404
+2026-06-19 22:55:29 - [Model-Service] - WARNING:    WatchFiles detected changes in 'app\main.py'. Reloading...
+2026-06-19 22:58:45 - [Model-Service] - INFO:    Shutting down
+2026-06-19 22:58:46 - [Model-Service] - INFO:    Waiting for application shutdown.
+2026-06-19 22:58:46 - [Model-Service] - INFO:    Application shutdown complete.
+2026-06-19 22:58:46 - [Model-Service] - INFO:    Finished server process [80496]
+2026-06-19 22:58:47 - [Model-Service] - WARNING:    WatchFiles detected changes in 'app\models.py'. Reloading...
+2026-06-19 22:58:53 - [Model-Service] - INFO:    Started server process [56968]
+2026-06-19 22:58:53 - [Model-Service] - INFO:    Waiting for application startup.
+2026-06-19 22:58:53 - [Model-Service] - INFO:    Initialized persistent cache at D:\Apps\fmcg-forecast-app\model-service\cache
+2026-06-19 22:58:53 - [Model-Service] - INFO:    engine.cached: True
+2026-06-19 22:58:53 - [Model-Service] - INFO:    Application startup complete.
+2026-06-19 22:58:53 - [Model-Service] - ERROR:    Traceback (most recent call last):
+[2026-06-19 22:58:53] [Model-Service]   File "C:\Users\hangd\miniforge3\Lib\asyncio\runners.py", line 118, in run
+[2026-06-19 22:58:53] [Model-Service]     return self._loop.run_until_complete(task)
+[2026-06-19 22:58:53] [Model-Service]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2026-06-19 22:58:53] [Model-Service]   File "C:\Users\hangd\miniforge3\Lib\asyncio\base_events.py", line 687, in run_until_complete
+[2026-06-19 22:58:53] [Model-Service]     return future.result()
+[2026-06-19 22:58:53] [Model-Service]            ^^^^^^^^^^^^^^^
+[2026-06-19 22:58:53] [Model-Service] asyncio.exceptions.CancelledError
+[2026-06-19 22:58:53] [Model-Service] System.Management.Automation.RemoteException
+[2026-06-19 22:58:53] [Model-Service] During handling of the above exception, another exception occurred:
+[2026-06-19 22:58:53] [Model-Service] System.Management.Automation.RemoteException
+[2026-06-19 22:58:53] [Model-Service] Traceback (most recent call last):
+[2026-06-19 22:58:53] [Model-Service]   File "C:\Users\hangd\miniforge3\Lib\asyncio\runners.py", line 194, in run
+[2026-06-19 22:58:53] [Model-Service]     return runner.run(main)
+[2026-06-19 22:58:53] [Model-Service]            ^^^^^^^^^^^^^^^^
+[2026-06-19 22:58:53] [Model-Service]   File "C:\Users\hangd\miniforge3\Lib\asyncio\runners.py", line 123, in run
+[2026-06-19 22:58:53] [Model-Service]     raise KeyboardInterrupt()
+[2026-06-19 22:58:53] [Model-Service] KeyboardInterrupt
+[2026-06-19 22:58:53] [Model-Service] System.Management.Automation.RemoteException
+[2026-06-19 22:58:53] [Model-Service] During handling of the above exception, another exception occurred:
+[2026-06-19 22:58:53] [Model-Service] System.Management.Automation.RemoteException
+[2026-06-19 22:58:53] [Model-Service] Traceback (most recent call last):
+[2026-06-19 22:58:53] [Model-Service]   File "D:\Apps\fmcg-forecast-app\model-service\.venv\Lib\site-packages\starlette\routing.py", line 700, in lifespan
+[2026-06-19 22:58:53] [Model-Service]     await receive()
+[2026-06-19 22:58:53] [Model-Service]   File "D:\Apps\fmcg-forecast-app\model-service\.venv\Lib\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+[2026-06-19 22:58:53] [Model-Service]     return await self.receive_queue.get()
+[2026-06-19 22:58:53] [Model-Service]            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2026-06-19 22:58:53] [Model-Service]   File "C:\Users\hangd\miniforge3\Lib\asyncio\queues.py", line 158, in get
+[2026-06-19 22:58:53] [Model-Service]     await getter
+[2026-06-19 22:58:53] [Model-Service] asyncio.exceptions.CancelledError
+[2026-06-19 22:58:53] [Model-Service] System.Management.Automation.RemoteException
+2026-06-19 22:58:56 - [Model-Service] - INFO:    Started server process [77696]
+2026-06-19 22:58:56 - [Model-Service] - INFO:    Waiting for application startup.
+2026-06-19 22:58:56 - [Model-Service] - INFO:    Initialized persistent cache at D:\Apps\fmcg-forecast-app\model-service\cache
+2026-06-19 22:58:56 - [Model-Service] - INFO:    engine.cached: True
+2026-06-19 22:58:56 - [Model-Service] - INFO:    Application startup complete.
+2026-06-19 23:00:27 - [Backend] - INFO:    127.0.0.1:59334 - "OPTIONS /api/forecast/ HTTP/1.1" 200
+2026-06-19 23:00:29 - [Backend] - INFO:    HTTP Request: POST http://localhost:8001/predict "HTTP/1.1 200 OK"
+2026-06-19 23:00:29 - [Backend] - INFO:    FORECAST_PERFORMANCE: dataset_id=dca1fef1-cf61-48c1-80f5-f33e147ddda3 rows=395000 duration=22.66s cached=False user_id=d29df03e-608d-4507-a88e-2d0e20feb8f4
+2026-06-19 23:00:29 - [Backend] - INFO:    127.0.0.1:59334 - "POST /api/forecast/ HTTP/1.1" 200

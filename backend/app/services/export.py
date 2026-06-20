@@ -6,11 +6,11 @@ import pandas as pd
 from fastapi import Response
 
 
-def export_csv(dates: list[str], values: list[float], lower: list[float] | None, upper: list[float] | None, records: list[dict] | None = None) -> Response:
+def export_csv(dates: list[str], values: list[float], lower: list[float] | None, upper: list[float] | None, detailed_records: list[dict] | None = None) -> Response:
     output = io.StringIO()
     
-    if records:
-        df = pd.DataFrame(records)
+    if detailed_records:
+        df = pd.DataFrame(detailed_records)
         df.to_csv(output, index=False)
     else:
         writer = csv.writer(output)
@@ -25,11 +25,11 @@ def export_csv(dates: list[str], values: list[float], lower: list[float] | None,
     )
 
 
-def export_excel(dates: list[str], values: list[float], lower: list[float] | None, upper: list[float] | None, records: list[dict] | None = None) -> Response:
+def export_excel(dates: list[str], values: list[float], lower: list[float] | None, upper: list[float] | None, detailed_records: list[dict] | None = None) -> Response:
     output = io.BytesIO()
     
-    if records:
-        df = pd.DataFrame(records)
+    if detailed_records:
+        df = pd.DataFrame(detailed_records)
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Forecast')
     else:

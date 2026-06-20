@@ -5,5 +5,6 @@
         "${workspaceFolder}/backend/.venv/Lib/site-packages",
         "${workspaceFolder}/model-service",
         "${workspaceFolder}/model-service/.venv/Lib/site-packages"
-    ]
+    ],
+    "chat.disableAIFeatures": false
 }

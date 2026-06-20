@@ -10,11 +10,13 @@ import {
 import { TrendingUp, Upload, GitCompare, Download, Loader2, Cpu, Calendar, CheckCircle2, Info, Database, BarChart3, Maximize2, Minimize2, Repeat, List, Timer, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { exportApi } from '../services/api';
+import '../types/forecast'; // Import the JSDoc typedef
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 export default function Dashboard() {
   const [datasets, setDatasets] = useState([]);
+  /** @type {[ForecastData[], Function]} */
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(null);
@@ -33,6 +35,13 @@ export default function Dashboard() {
       setForecasts(fcRes.data);
     }).finally(() => setLoading(false));
   }, []);
+
+  // Scroll to chart section when a new forecast is selected
+  useEffect(() => {
+    if (selectedForecastIndex !== null && forecasts.length > 0) {
+      document.getElementById('dashboard-chart-section')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedForecastIndex, forecasts]);
 
   const handleExport = async (id, format) => {
     setExporting({ id, format });
@@ -85,6 +94,7 @@ export default function Dashboard() {
     }
   };
 
+  /** @type {ForecastData|null} */
   const selectedForecast = forecasts[selectedForecastIndex] || null;
 
   const productIds = React.useMemo(() => {
@@ -97,7 +107,7 @@ export default function Dashboard() {
     return [...new Set(selectedForecast.detailed_records.map(r => r.outlet_id))].sort((a, b) => a - b);
   }, [selectedForecast]);
 
-  const chartData = React.useMemo(() => {
+  const chartData = React.useMemo(() => { // Add selectedForecast to dependency array
     if (!selectedForecast) return { labels: [], datasets: [] };
 
     let filteredRecords = selectedForecast.detailed_records || [];
@@ -174,11 +184,50 @@ export default function Dashboard() {
     };
   }, [selectedForecast, selectedProductId, selectedOutletId]);
 
+  const chartOptions = React.useMemo(() => {
+    const freqLabel = (() => {
+      const f = selectedForecast?.detected_freq?.toUpperCase();
+      if (!f) return '';
+      if (f.startsWith('D')) return 'Daily';
+      if (f.startsWith('W')) return 'Weekly';
+      if (f.startsWith('M')) return 'Monthly';
+      return f;
+    })();
+
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          title: {
+            display: !!freqLabel,
+            text: `Timeline (${freqLabel})`,
+            font: { weight: 600, size: 12 },
+            color: '#64748b',
+            padding: { top: 10 }
+          }
+        },
+        y: { beginAtZero: true },
+      },
+    };
+  }, [selectedForecast]);
+
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   return (
     <div>
       <style>{`
+        html {
+          scroll-behavior: smooth;
+        }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
@@ -222,8 +271,8 @@ export default function Dashboard() {
 
       {forecasts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: -12 }}>
-          {/* Card 1: Interactive Forecast Chart */}
-          <div className="card" style={{ padding: '8px 20px' }}>
+          {/* Card 1: Interactive Forecast Chart */} {/* Add id for scrolling */}
+          <div className="card" id="dashboard-chart-section" style={{ padding: '8px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
               <h2 className="card-title" style={{ margin: 0 }}>Interactive Forecast Chart</h2>
               
@@ -307,12 +356,7 @@ export default function Dashboard() {
               <Line
                 ref={chartRef}
                 data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { position: 'top' } },
-                  scales: { y: { beginAtZero: true } },
-                }}
+                options={chartOptions}
               />
             </div>
           </div>
@@ -360,6 +404,7 @@ export default function Dashboard() {
                   <tr>
                     <th>Dataset (Historical Rows)</th>
                     <th>Model Used</th>
+                    <th>Frequency</th>
                     <th>Date Run</th>
                     <th>Forecast Size</th>
                     <th>MAPE</th>
@@ -374,6 +419,15 @@ export default function Dashboard() {
                     const datasetNameStr = f.dataset_name || 'Dataset';
                     const datasetRowsStr = f.dataset_row_count ? ` (${f.dataset_row_count.toLocaleString()} rows)` : '';
                     
+                    const freqInfo = (() => {
+                      const freq = f.detected_freq?.toUpperCase();
+                      if (!freq) return { label: 'Auto', bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
+                      if (freq.startsWith('D')) return { label: 'Daily', bg: '#ecfdf5', color: '#059669', border: '#d1fae5' };
+                      if (freq.startsWith('W')) return { label: 'Weekly', bg: '#eff6ff', color: '#3b82f6', border: '#dbeafe' };
+                      if (freq.startsWith('M')) return { label: 'Monthly', bg: '#fffbeb', color: '#d97706', border: '#fef3c7' };
+                      return { label: freq, bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
+                    })();
+
                     const periodsCount = f.dates?.length || 0;
                     const recordsCount = f.detailed_records?.length || 0;
                     
@@ -389,6 +443,12 @@ export default function Dashboard() {
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, background: '#f1f5f9', padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
                             <Cpu size={14} color="#64748b" />
                             <span>{modelName}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, background: freqInfo.bg, color: freqInfo.color, padding: '2px 10px', borderRadius: 12, border: `1px solid ${freqInfo.border}` }}>
+                            <Timer size={12} color={freqInfo.color} />
+                            <span>{freqInfo.label}</span>
                           </div>
                         </td>
                         <td style={{ fontSize: 13, color: '#475569' }}>
@@ -441,7 +501,9 @@ export default function Dashboard() {
                             <button
                               className="btn"
                               style={{ padding: '6px 12px', fontSize: 12, background: '#e0e7ff', color: '#4338ca' }}
-                              onClick={() => setSelectedForecastIndex(i)}
+                              onClick={() => {
+                                setSelectedForecastIndex(i);
+                              }}
                               disabled={selectedForecastIndex === i}
                             >
                               {selectedForecastIndex === i ? 'Viewing' : 'View Chart'}

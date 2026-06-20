@@ -10,6 +10,7 @@ import 'hammerjs';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import toast from 'react-hot-toast';
 import { Download, TrendingUp, Filter, Loader2, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Save, Eye, X, Trash2, Check, Calendar, Edit2, BarChart3, LineChart, Share2, Dot, CircleOff, Info, Zap, Timer } from 'lucide-react';
+import '../types/forecast'; // Import the JSDoc typedef
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, zoomPlugin);
 
@@ -25,16 +26,23 @@ export default function Forecast() {
   const [datasets, setDatasets] = useState([]);
   const [selectedDataset, setSelectedDataset] = useState('');
   const [selectedProducts, setSelectedProducts] = useState([]); // Changed to array
+  const [showDatasetDropdown, setShowDatasetDropdown] = useState(false);
+  const [datasetSearchTerm, setDatasetSearchTerm] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [productDropdownSearchTerm, setProductDropdownSearchTerm] = useState(''); // New state for product dropdown search
   const [showPoints, setShowPoints] = useState(true); // New state for toggling data points
   const [chartType, setChartType] = useState('line');
   const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [modelType, setModelType] = useState(() => getStoredOrDefault('fmcg_model_type', 'ExtraTrees'));
+  const [frequency, setFrequency] = useState(() => getStoredOrDefault('fmcg_frequency', ''));
   const [aggregation, setAggregation] = useState(() => getStoredOrDefault('fmcg_aggregation', 'mean'));
+  const [dateFormat] = useState(() => getStoredOrDefault('fmcg_date_format', ''));
   const [periods, setPeriods] = useState(() => getStoredOrDefault('fmcg_periods', 12, Number));
   const [seasonality, setSeasonality] = useState(() => getStoredOrDefault('fmcg_seasonality', 12, Number));
   const [confidence, setConfidence] = useState(() => getStoredOrDefault('fmcg_confidence', 0.95, Number));
+  const [forceRetrain, setForceRetrain] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** @type {[ForecastData|null, Function]} */
   const [result, setResult] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [chartSearchDate, setChartSearchDate] = useState(''); // New state for drill-down
@@ -43,6 +51,7 @@ export default function Forecast() {
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(() => getStoredOrDefault('fmcg_rowsPerPage', 50, Number));
   const [exporting, setExporting] = useState(null);
+  /** @type {[ForecastData[], Function]} */
   const [history, setHistory] = useState([]);
   const [activeHistoryId, setActiveHistoryId] = useState(null);
   const [confirmDeleteHistoryId, setConfirmDeleteHistoryId] = useState(null);
@@ -60,6 +69,7 @@ export default function Forecast() {
   const [restoredFlash, setRestoredFlash] = useState(false);
   const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
+  const datasetDropdownRef = useRef(null);
   const chartRef = useRef(null);
   const historyRowsPerPage = 10;
 
@@ -72,7 +82,33 @@ export default function Forecast() {
         setResult(r.data[0]);
         setActiveHistoryId(r.data[0].id);
       }
-    }).catch(() => {});
+    }).catch(() => { });
+  }, []);
+
+  // Click outside handler for dataset dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (datasetDropdownRef.current && !datasetDropdownRef.current.contains(event.target)) {
+        setShowDatasetDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Keyboard handler for closing dropdowns
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowDatasetDropdown(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Load state from URL parameters on mount
@@ -85,6 +121,8 @@ export default function Forecast() {
     const per = params.get('per');
     const s = params.get('s');
     const c = params.get('c');
+    const m = params.get('m');
+    const f = params.get('f');
     const t = params.get('t');
     const zmin = params.get('zmin');
     const zmax = params.get('zmax');
@@ -95,6 +133,8 @@ export default function Forecast() {
     if (a) setAggregation(a);
     if (per) setPeriods(Number(per));
     if (s) setSeasonality(Number(s));
+    if (m) setModelType(m);
+    if (f) setFrequency(f);
     if (c) setConfidence(Number(c));
     if (t) setChartType(t);
     // No zmin/zmax for showPoints as it's a visual preference, not data range
@@ -137,6 +177,13 @@ export default function Forecast() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Scroll to chart section when a new forecast is viewed
+  useEffect(() => {
+    if (activeHistoryId !== null && result) {
+      document.getElementById('forecast-chart-section')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeHistoryId, result]);
+
   // Reset to first page when filters or sorting change
   useEffect(() => {
     setCurrentPage(1);
@@ -150,6 +197,8 @@ export default function Forecast() {
   const saveAsDefault = () => {
     localStorage.setItem('fmcg_aggregation', aggregation);
     localStorage.setItem('fmcg_periods', String(periods));
+    localStorage.setItem('fmcg_model_type', modelType);
+    localStorage.setItem('fmcg_frequency', frequency);
     localStorage.setItem('fmcg_seasonality', String(seasonality));
     localStorage.setItem('fmcg_confidence', String(confidence));
     localStorage.setItem('fmcg_rowsPerPage', String(rowsPerPage));
@@ -165,6 +214,8 @@ export default function Forecast() {
     if (periods) params.set('per', periods);
     if (seasonality) params.set('s', seasonality);
     if (confidence) params.set('c', confidence);
+    if (modelType) params.set('m', modelType);
+    if (frequency) params.set('f', frequency);
     if (chartType) params.set('t', chartType);
     if (!showPoints) params.set('sp', 'false'); // Only save if points are hidden
 
@@ -176,7 +227,7 @@ export default function Forecast() {
     }
 
     const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-    
+
     navigator.clipboard.writeText(shareUrl).then(() => {
       toast.success('Share link copied to clipboard!');
     }).catch(() => {
@@ -187,10 +238,14 @@ export default function Forecast() {
   const handleReset = () => {
     setSelectedDataset('');
     setSelectedProducts([]);
+    setShowDatasetDropdown(false);
+    setDatasetSearchTerm('');
     setSelectedOutlet('');
     setAggregation(getStoredOrDefault('fmcg_aggregation', 'mean'));
     setPeriods(getStoredOrDefault('fmcg_periods', 12, Number));
     setSeasonality(getStoredOrDefault('fmcg_seasonality', 12, Number));
+    setModelType(getStoredOrDefault('fmcg_model_type', 'ExtraTrees'));
+    setFrequency(getStoredOrDefault('fmcg_frequency', ''));
     setChartType('line');
     setShowPoints(true); // Reset showPoints to default (true)
     setConfidence(getStoredOrDefault('fmcg_confidence', 0.95, Number));
@@ -207,6 +262,15 @@ export default function Forecast() {
     setHistoryCurrentPage(1);
     setRowsPerPage(getStoredOrDefault('fmcg_rowsPerPage', 50, Number));
     toast.success('All parameters and filters reset');
+  };
+
+  const handleClearCache = async () => {
+    try {
+      await forecastApi.clearCache();
+      toast.success('Model cache cleared successfully');
+    } catch (err) {
+      toast.error('Failed to clear model cache');
+    }
   };
 
   const handleRenameHistory = async (id) => {
@@ -234,8 +298,7 @@ export default function Forecast() {
     setSelectedProducts([]);
     setSearchTerm('');
     setSortConfig({ key: 'date', direction: 'asc' });
-    setCurrentPage(1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCurrentPage(1); // Reset pagination
     const dateStr = h.created_at.includes('Z') || h.created_at.includes('+') ? h.created_at : h.created_at + 'Z';
     toast.success(`Loaded forecast from ${new Date(dateStr).toLocaleString()}`);
   };
@@ -286,7 +349,7 @@ export default function Forecast() {
 
     if (historySearchTerm) {
       const lowerSearch = historySearchTerm.toLowerCase();
-      filtered = filtered.filter(h => 
+      filtered = filtered.filter(h =>
         (h.dataset_name || '').toLowerCase().includes(lowerSearch) ||
         (h.name || '').toLowerCase().includes(lowerSearch)
       );
@@ -294,13 +357,13 @@ export default function Forecast() {
 
     if (historyStartDate || historyEndDate) {
       filtered = filtered.filter((h) => {
-      const hDate = new Date(h.created_at).getTime();
-      const start = historyStartDate ? new Date(historyStartDate).setHours(0, 0, 0, 0) : null;
-      const end = historyEndDate ? new Date(historyEndDate).setHours(23, 59, 59, 999) : null;
-      if (start && hDate < start) return false;
-      if (end && hDate > end) return false;
-      return true;
-    });
+        const hDate = new Date(h.created_at).getTime();
+        const start = historyStartDate ? new Date(historyStartDate).setHours(0, 0, 0, 0) : null;
+        const end = historyEndDate ? new Date(historyEndDate).setHours(23, 59, 59, 999) : null;
+        if (start && hDate < start) return false;
+        if (end && hDate > end) return false;
+        return true;
+      });
     }
     return filtered;
   }, [history, historyStartDate, historyEndDate, historySearchTerm]);
@@ -323,7 +386,7 @@ export default function Forecast() {
   };
 
   const handleToggleSelectRow = (id) => {
-    setSelectedHistoryIds(prev => 
+    setSelectedHistoryIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -334,7 +397,7 @@ export default function Forecast() {
     try {
       // Execute all delete requests in parallel
       await Promise.all(selectedHistoryIds.map(id => forecastApi.deleteHistory(id)));
-      
+
       setHistory(prev => prev.filter(h => !selectedHistoryIds.includes(h.id)));
       if (selectedHistoryIds.includes(activeHistoryId)) {
         handleClearHistoryView();
@@ -361,11 +424,16 @@ export default function Forecast() {
         forecast_periods: periods,
         seasonality_period: seasonality,
         confidence_level: confidence,
+        model_type: modelType,
+        force_retrain: forceRetrain,
+        frequency: frequency || null,
         aggregation: aggregation,
+        date_format: dateFormat || null,
       });
       setResult(res.data);
       setActiveHistoryId(res.data.id);
       setHistory((prev) => [res.data, ...prev.filter(h => h.id !== res.data.id)]);
+      setForceRetrain(false); // Reset to default after successful run
       if (res.data.cached) {
         toast.success('Forecast complete (reused cached model)', {
           icon: <Zap size={20} fill="#eab308" color="#eab308" />,
@@ -395,6 +463,18 @@ export default function Forecast() {
     const periodsToRestore = h.parameters?.forecast_periods ?? h.forecast_periods;
     if (periodsToRestore !== undefined && periodsToRestore !== null) {
       setPeriods(Number(periodsToRestore));
+    }
+
+    // Set model type
+    const modelToRestore = h.parameters?.model_type ?? h.model_type;
+    if (modelToRestore) {
+      setModelType(modelToRestore);
+    }
+
+    // Set frequency
+    const freqToRestore = h.parameters?.frequency ?? h.frequency;
+    if (freqToRestore !== undefined && freqToRestore !== null) {
+      setFrequency(freqToRestore);
     }
 
     // Set seasonality
@@ -456,7 +536,7 @@ export default function Forecast() {
 
   const filteredData = useMemo(() => {
     if (!result?.detailed_records) return null;
-    
+
     // Filter records for the specific product
     let records = result.detailed_records;
     if (selectedProducts.length > 0) {
@@ -465,7 +545,7 @@ export default function Forecast() {
     if (selectedOutlet) {
       records = records.filter(r => String(r.outlet_id) === selectedOutlet);
     }
-    
+
     // Re-aggregate (Mean) by date for the chart
     const groups = records.reduce((acc, r) => {
       acc[r.date] = acc[r.date] || [];
@@ -478,8 +558,8 @@ export default function Forecast() {
       labels: sortedDates,
       values: sortedDates.map(d => {
         const sum = groups[d].reduce((a, b) => a + b, 0);
-        return aggregation === 'sum' 
-          ? Number(sum.toFixed(2)) 
+        return aggregation === 'sum'
+          ? Number(sum.toFixed(2))
           : Number((sum / groups[d].length).toFixed(2));
       })
     };
@@ -503,8 +583,8 @@ export default function Forecast() {
 
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter(r => 
-        String(r.product_id).toLowerCase().includes(lowerSearch) || 
+      filtered = filtered.filter(r =>
+        String(r.product_id).toLowerCase().includes(lowerSearch) ||
         String(r.outlet_id).toLowerCase().includes(lowerSearch) ||
         r.date.toLowerCase().includes(lowerSearch)
       );
@@ -571,7 +651,7 @@ export default function Forecast() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch (err) { 
+    } catch (err) {
       // Try to extract the error message from the Blob response
       const detail = err.response?.data?.detail || 'Export failed';
       toast.error(detail);
@@ -583,7 +663,7 @@ export default function Forecast() {
 
   const handleProductToggle = (id) => {
     const sId = String(id);
-    setSelectedProducts(prev => 
+    setSelectedProducts(prev =>
       prev.includes(sId) ? prev.filter(p => p !== sId) : [...prev, sId]
     );
   };
@@ -602,33 +682,33 @@ export default function Forecast() {
     if (!result) return null;
     return {
       labels: filteredData ? filteredData.labels : result.dates,
-    datasets: [
-      { 
-        label: [
-          getProductLabel(),
-          '@',
-          selectedOutlet ? `Outlet ${selectedOutlet}` : 'All Outlets',
-          `(${aggregation === 'mean' ? 'Mean' : 'Sum'})`
-        ].join(' '),
-        data: filteredData ? filteredData.values : result.values,
-        borderColor: '#4338ca', 
-        backgroundColor: chartType === 'bar' ? '#4338ca' : 'rgba(67,56,202,0.1)', // Solid blue for bars, transparent fill for line
-        fill: chartType === 'line' ? true : false, // Fill only for line chart
-        tension: chartType === 'line' ? 0.3 : 0, // Tension only for line chart
-      },
-      ...((result.lower_bound && selectedProducts.length === 0 && aggregation === 'mean') ? [{
-        label: 'Upper Bound', data: result.upper_bound, borderColor: '#94a3b8', borderDash: [5, 5], pointRadius: 0, fill: false,
-        pointRadius: 0, // Always hide points for bounds
-      }] : []),
-      ...((result.lower_bound && selectedProducts.length === 0 && aggregation === 'mean') ? [{
-        label: 'Lower Bound', data: result.lower_bound, borderColor: '#94a3b8', borderDash: [5, 5], pointRadius: 0, fill: false,
-        pointRadius: 0, // Always hide points for bounds
-      }] : []),
-    ],
+      datasets: [
+        {
+          label: [
+            getProductLabel(),
+            '@',
+            selectedOutlet ? `Outlet ${selectedOutlet}` : 'All Outlets',
+            `(${aggregation === 'mean' ? 'Mean' : 'Sum'})`
+          ].join(' '),
+          data: filteredData ? filteredData.values : result.values,
+          borderColor: '#4338ca',
+          backgroundColor: chartType === 'bar' ? '#4338ca' : 'rgba(67,56,202,0.1)', // Solid blue for bars, transparent fill for line
+          fill: chartType === 'line' ? true : false, // Fill only for line chart
+          tension: chartType === 'line' ? 0.3 : 0, // Tension only for line chart
+        },
+        ...((result.lower_bound && selectedProducts.length === 0 && aggregation === 'mean') ? [{
+          label: 'Upper Bound', data: result.upper_bound, borderColor: '#94a3b8', borderDash: [5, 5], pointRadius: 0, fill: false,
+          pointRadius: 0, // Always hide points for bounds
+        }] : []),
+        ...((result.lower_bound && selectedProducts.length === 0 && aggregation === 'mean') ? [{
+          label: 'Lower Bound', data: result.lower_bound, borderColor: '#94a3b8', borderDash: [5, 5], pointRadius: 0, fill: false,
+          pointRadius: 0, // Always hide points for bounds
+        }] : []),
+      ],
     };
   }, [result, filteredData, selectedProducts, selectedOutlet, aggregation, chartType]);
 
-  const chartOptions = useMemo(() => {
+  const chartOptions = useMemo(() => {// Add result to dependency array
     const baseOptions = {
       responsive: true,
       onClick: (event, elements, chart) => {
@@ -642,7 +722,7 @@ export default function Forecast() {
       onHover: (event, elements) => {
         event.native.target.style.cursor = elements.length > 0 ? 'pointer' : 'default';
       },
-      plugins: { 
+      plugins: {
         legend: { position: 'top' },
         tooltip: { mode: 'index', intersect: false },
         zoom: {
@@ -665,18 +745,44 @@ export default function Forecast() {
       elements: { point: { radius: chartType === 'line' && showPoints ? 3 : 0 } }, // Apply showPoints here
     };
 
+    const freqLabel = (() => {
+      const f = result?.detected_freq?.toUpperCase();
+      if (!f) return 'Auto';
+      if (f.startsWith('D')) return 'Daily';
+      if (f.startsWith('W')) return 'Weekly';
+      if (f.startsWith('M')) return 'Monthly';
+      return f;
+    })();
+
+    const xAxisConfig = {
+      grid: { display: false },
+      title: {
+        display: !!freqLabel,
+        text: `Timeline (${freqLabel})`,
+        font: { weight: 600, size: 12 },
+        color: '#64748b',
+        padding: { top: 10 }
+      }
+    };
+
     if (chartType === 'line') {
-      return { ...baseOptions, scales: { y: { beginAtZero: true } } };
+      return {
+        ...baseOptions,
+        scales: {
+          x: xAxisConfig,
+          y: { beginAtZero: true }
+        }
+      };
     }
 
     return {
       ...baseOptions,
-      scales: { 
-        x: { stacked: true },
-        y: { beginAtZero: true, stacked: false } 
+      scales: {
+        x: { ...xAxisConfig, stacked: true },
+        y: { beginAtZero: true, stacked: false }
       },
     };
-  }, [chartType, chartData]);
+  }, [chartType, chartData, result, showPoints]);
 
   return (
     <div>
@@ -810,7 +916,10 @@ export default function Forecast() {
                 </span>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={handleClearCache} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} title="Clear model cache on disk">
+                <Trash2 size={14} /> Clear Cache
+              </button>
               <button onClick={handleShareLink} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} title="Copy shareable link">
                 <Share2 size={14} /> Share
               </button>
@@ -823,25 +932,90 @@ export default function Forecast() {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Dataset</label>
-            <select className="form-select" value={selectedDataset} onChange={(e) => setSelectedDataset(e.target.value)}>
-              <option value="">-- Select dataset --</option>
-              {datasets.map((d) => (
-                <option key={d.id} value={d.id}>{d.filename} ({d.row_count?.toLocaleString()} rows)</option>
-              ))}
+            <label className="form-label">DATASET</label>
+            <div className="multi-select-container" ref={datasetDropdownRef}>
+              <button
+                className="form-select"
+                onClick={() => {
+                  setShowDatasetDropdown(!showDatasetDropdown);
+                  if (!showDatasetDropdown) setDatasetSearchTerm(''); // Clear search on open
+                }}
+                style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span>
+                  {selectedDataset && !showDatasetDropdown ? datasets.find(d => d.id === selectedDataset)?.filename : '-- Select dataset --'}
+                </span>
+                <ChevronDown size={16} />
+              </button>
+              {showDatasetDropdown && (
+                <div className="multi-select-list">
+                  <div style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Search datasets..."
+                      style={{ height: 28, fontSize: '12px', padding: '2px 8px' }}
+                      value={datasetSearchTerm}
+                      onChange={(e) => setDatasetSearchTerm(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  {datasets.filter(d => d.filename.toLowerCase().includes(datasetSearchTerm.toLowerCase())).map((d) => (
+                    <div
+                      key={d.id}
+                      className="multi-select-item"
+                      onClick={() => { setSelectedDataset(d.id); setShowDatasetDropdown(false); }}
+                    >
+                      {d.filename} ({d.row_count?.toLocaleString()} rows)
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Forecasting Model</label>
+            <select className="form-select" value={modelType} onChange={(e) => setModelType(e.target.value)}>
+              <option value="ExtraTrees">Extra Trees Regressor (ML)</option>
+              <option value="MovingAverage">Simple Moving Average (Baseline)</option>
+            </select>
+            <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+              {modelType === 'ExtraTrees' ? 'Uses machine learning to find patterns.' : 'Uses historical averages per product.'}
+            </p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Dataset Frequency</label>
+            <select className="form-select" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+              <option value="">Automatic (Auto-detect)</option>
+              <option value="W">Weekly</option>
+              <option value="D">Daily</option>
+              <option value="ME">Monthly</option>
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Forecast Periods</label>
-            <input className="form-input" type="number" min={1} max={365} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} />
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Forecast Periods</label>
+            <input className="form-input" style={{ width: 100 }} type="number" min={1} max={365} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Seasonality Period</label>
-            <input className="form-input" type="number" min={1} value={seasonality} onChange={(e) => setSeasonality(Number(e.target.value))} />
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Seasonality Period</label>
+            <input className="form-input" style={{ width: 100 }} type="number" min={1} value={seasonality} onChange={(e) => setSeasonality(Number(e.target.value))} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Confidence Level</label>
-            <input className="form-input" type="number" min={0.5} max={0.99} step={0.01} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} />
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Confidence Level</label>
+            <input className="form-input" style={{ width: 100 }} type="number" min={0.5} max={0.99} step={0.01} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} />
+          </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+            <input type="checkbox" id="force-retrain" checked={forceRetrain} onChange={(e) => setForceRetrain(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+            <label htmlFor="force-retrain" className="form-label" style={{ marginBottom: 0, cursor: 'pointer', color: '#dc2626', fontWeight: 600 }}>
+              Force Model Retraining
+            </label>
+          </div>
+          <div style={{ marginBottom: 20, padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={16} color="#64748b" />
+            <div style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500, width: 150, marginBottom: 0 }}>Current Date Format:</span>
+              <strong style={{ lineHeight: 1 }}>{dateFormat || 'Automatic (Auto-detect)'}</strong>
+            </div>
           </div>
           <button className="btn btn-primary" onClick={handleForecast} disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? (
@@ -855,7 +1029,7 @@ export default function Forecast() {
           </button>
         </div>
 
-        <div className="card" style={{ position: 'relative', overflow: 'hidden', height: 'fit-content' }}>
+        <div className="card" id="forecast-chart-section" style={{ position: 'relative', overflow: 'hidden', height: 'fit-content' }}>
           {loading && (
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '3px', backgroundColor: '#e2e8f0' }}>
               <div className="progress-bar-line" />
@@ -866,9 +1040,9 @@ export default function Forecast() {
             {result && productIds.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                  <button 
+                  <button
                     onClick={() => setChartType('line')}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
                       background: chartType === 'line' ? '#4338ca' : 'white',
                       color: chartType === 'line' ? 'white' : '#64748b'
@@ -877,9 +1051,9 @@ export default function Forecast() {
                   >
                     <LineChart size={14} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setChartType('bar')}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
                       background: chartType === 'bar' ? '#4338ca' : 'white',
                       color: chartType === 'bar' ? 'white' : '#64748b'
@@ -893,9 +1067,9 @@ export default function Forecast() {
                 <div style={{ width: '1px', height: '16px', background: '#e2e8f0' }} />
 
                 <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                  <button 
+                  <button
                     onClick={() => setShowPoints(true)}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
                       background: showPoints ? '#4338ca' : 'white',
                       color: showPoints ? 'white' : '#64748b'
@@ -904,9 +1078,9 @@ export default function Forecast() {
                   >
                     <Dot size={14} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowPoints(false)}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
                       background: !showPoints ? '#4338ca' : 'white',
                       color: !showPoints ? 'white' : '#64748b'
@@ -920,17 +1094,17 @@ export default function Forecast() {
                 <div style={{ width: '1px', height: '16px', background: '#e2e8f0' }} />
 
                 <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                  <button 
+                  <button
                     onClick={() => setAggregation('mean')}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', fontSize: '11px', border: 'none', cursor: 'pointer', fontWeight: 500,
                       background: aggregation === 'mean' ? '#4338ca' : 'white',
                       color: aggregation === 'mean' ? 'white' : '#64748b'
                     }}
                   >Mean</button>
-                  <button 
+                  <button
                     onClick={() => setAggregation('sum')}
-                    style={{ 
+                    style={{
                       padding: '4px 8px', fontSize: '11px', border: 'none', cursor: 'pointer', fontWeight: 500,
                       background: aggregation === 'sum' ? '#4338ca' : 'white',
                       color: aggregation === 'sum' ? 'white' : '#64748b'
@@ -939,10 +1113,10 @@ export default function Forecast() {
                 </div>
                 <div style={{ width: '1px', height: '16px', background: '#e2e8f0', margin: '0 4px' }} />
                 <Filter size={14} color="#64748b" />
-                
+
                 <div className="multi-select-container">
-                  <button 
-                    className="btn btn-secondary" 
+                  <button
+                    className="btn btn-secondary"
                     style={{ padding: '4px 8px', fontSize: '13px', width: '100%', justifyContent: 'space-between' }}
                     onClick={() => setShowProductDropdown(!showProductDropdown)}
                   >
@@ -970,9 +1144,9 @@ export default function Forecast() {
                       </div>
                       {filteredProductIds.map(id => ( // Use filteredProductIds here
                         <label key={id} className="multi-select-item" onClick={(e) => e.stopPropagation()}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedProducts.includes(String(id))} 
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.includes(String(id))}
                             onChange={() => handleProductToggle(id)}
                           />
                           Product {id}
@@ -982,8 +1156,8 @@ export default function Forecast() {
                   )}
                 </div>
 
-                <select 
-                  className="form-select" 
+                <select
+                  className="form-select"
                   style={{ padding: '4px 8px', fontSize: '13px', width: 'auto' }}
                   value={selectedOutlet}
                   onChange={(e) => setSelectedOutlet(e.target.value)}
@@ -1010,17 +1184,28 @@ export default function Forecast() {
                   Viewing: {result.name || `Forecast from ${new Date(result.created_at.includes('Z') || result.created_at.includes('+') ? result.created_at : result.created_at + 'Z').toLocaleString()}`}
                 </span>
               </div>
-              <button
-                onClick={handleClearHistoryView}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#7c3aed', padding: '2px 6px', borderRadius: '4px',
-                  display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px',
-                  fontWeight: 500,
-                }}
-              >
-                <X size={12} /> Clear
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {result.detected_freq && !result.detected_freq.startsWith('W') && (
+                  <div style={{
+                    fontSize: '11px', background: '#fffbeb', color: '#92400e',
+                    padding: '2px 8px', borderRadius: '12px', border: '1px solid #fde68a',
+                    display: 'flex', alignItems: 'center', gap: 4
+                  }} title="The model detected a non-weekly pattern in your data">
+                    <Info size={12} /> Frequency: {result.detected_freq === 'D' ? 'Daily' : result.detected_freq === 'ME' ? 'Monthly' : result.detected_freq}
+                  </div>
+                )}
+                <button
+                  onClick={handleClearHistoryView}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#7c3aed', padding: '2px 6px', borderRadius: '4px',
+                    display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px',
+                    fontWeight: 500,
+                  }}
+                >
+                  <X size={12} /> Clear
+                </button>
+              </div>
             </div>
           )}
 
@@ -1039,17 +1224,17 @@ export default function Forecast() {
                   <Download size={16} /> Image
                 </button>
                 <button className="btn btn-secondary" onClick={() => handleExport(result.id, 'csv')} disabled={exporting?.id === result.id && exporting?.format === 'csv'}>
-                  {exporting?.id === result.id && exporting?.format === 'csv' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
+                  {exporting?.id === result.id && exporting?.format === 'csv' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   CSV
                 </button>
                 <button className="btn btn-secondary" onClick={() => handleExport(result.id, 'xlsx')} disabled={exporting?.id === result.id && exporting?.format === 'xlsx'}>
-                  {exporting?.id === result.id && exporting?.format === 'xlsx' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
+                  {exporting?.id === result.id && exporting?.format === 'xlsx' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   Excel
                 </button>
               </div>
               {(result?.training_time !== undefined && result?.training_time !== null) && (
                 <div style={{ textAlign: 'center', marginTop: 12, fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  Processing time: {result.training_time}s 
+                  Processing time: {result.training_time}s
                   {result.cached && (
                     <span title="Dataset hasn't changed, skipping training" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Zap size={12} fill="#eab308" color="#eab308" />
@@ -1072,15 +1257,15 @@ export default function Forecast() {
         <div className="card" id="detailed-records" style={{ marginTop: 24 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
             <h2 className="card-title" style={{ margin: 0 }}>Detailed Forecast Records</h2>
-            
+
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, justifyContent: 'flex-end' }}>
               {chartSearchDate && (
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', gap: 8, background: '#ede9fe', 
-                  padding: '4px 12px', borderRadius: '20px', border: '1px solid #c4b5fd' 
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: '#ede9fe',
+                  padding: '4px 12px', borderRadius: '20px', border: '1px solid #c4b5fd'
                 }}>
                   <span style={{ fontSize: '12px', color: '#4338ca', fontWeight: 600 }}>Date: {chartSearchDate}</span>
-                  <button 
+                  <button
                     onClick={() => setChartSearchDate('')}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7c3aed', display: 'flex' }}
                   ><X size={14} /></button>
@@ -1088,8 +1273,8 @@ export default function Forecast() {
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>Rows per page:</span>
-                <select 
-                  className="form-select" 
+                <select
+                  className="form-select"
                   style={{ padding: '4px 8px', fontSize: '13px', width: 'auto' }}
                   value={rowsPerPage}
                   onChange={(e) => setRowsPerPage(Number(e.target.value))}
@@ -1101,10 +1286,10 @@ export default function Forecast() {
               </div>
               <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
                 <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Search product, outlet, date..." 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search product, outlet, date..."
                   style={{ paddingLeft: 36, height: 38 }}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1156,22 +1341,22 @@ export default function Forecast() {
 
           {totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 16 }}>
-              <button 
-                className="btn btn-secondary" 
-                disabled={currentPage === 1} 
+              <button
+                className="btn btn-secondary"
+                disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 style={{ padding: '4px 12px' }}
               >
                 <ChevronLeft size={16} /> Previous
               </button>
-              
+
               <span style={{ fontSize: 14, color: '#64748b' }}>
                 Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
               </span>
 
-              <button 
-                className="btn btn-secondary" 
-                disabled={currentPage === totalPages} 
+              <button
+                className="btn btn-secondary"
+                disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 style={{ padding: '4px 12px' }}
               >
@@ -1179,7 +1364,7 @@ export default function Forecast() {
               </button>
             </div>
           )}
-          
+
           {tableRecords.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>No matching records found</div>
           )}
@@ -1193,10 +1378,10 @@ export default function Forecast() {
               <h2 className="card-title" style={{ margin: 0 }}>Forecast History</h2>
               <div style={{ position: 'relative', width: '200px' }}>
                 <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Search dataset..." 
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search dataset..."
                   style={{ paddingLeft: 28, height: 32, fontSize: '13px' }}
                   value={historySearchTerm}
                   onChange={(e) => setHistorySearchTerm(e.target.value)}
@@ -1204,25 +1389,25 @@ export default function Forecast() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '4px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <Calendar size={14} color="#64748b" />
-                <input 
-                  type="date" 
-                  className="form-input" 
+                <input
+                  type="date"
+                  className="form-input"
                   style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', fontSize: '13px' }}
                   value={historyStartDate}
                   onChange={(e) => setHistoryStartDate(e.target.value)}
                   title="Filter start date"
                 />
                 <span style={{ color: '#94a3b8' }}>-</span>
-                <input 
-                  type="date" 
-                  className="form-input" 
+                <input
+                  type="date"
+                  className="form-input"
                   style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', fontSize: '13px' }}
                   value={historyEndDate}
                   onChange={(e) => setHistoryEndDate(e.target.value)}
                   title="Filter end date"
                 />
                 {(historyStartDate || historyEndDate) && (
-                  <button 
+                  <button
                     onClick={() => { setHistoryStartDate(''); setHistoryEndDate(''); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
                   ><X size={14} /></button>
@@ -1247,7 +1432,7 @@ export default function Forecast() {
                   </button>
                 )
               )}
-              
+
               {confirmDeleteAll ? (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: 500 }}>Clear all?</span>
@@ -1262,7 +1447,7 @@ export default function Forecast() {
                 <button className="btn btn-secondary" onClick={() => setConfirmDeleteAll(true)} style={{ color: '#ef4444', borderColor: '#fee2e2' }}>
                   <Trash2 size={14} style={{ marginRight: 4 }} /> Delete All
                 </button>
-              )}              
+              )}
             </div>
           </div>
 
@@ -1270,8 +1455,8 @@ export default function Forecast() {
             <thead>
               <tr>
                 <th style={{ width: 40 }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={filteredHistory.length > 0 && filteredHistory.every(h => selectedHistoryIds.includes(h.id))}
                     onChange={handleToggleSelectAll}
                     style={{ cursor: 'pointer' }}
@@ -1298,9 +1483,9 @@ export default function Forecast() {
                   >
                     <td style={{ paddingRight: 0, width: 40 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedHistoryIds.includes(h.id)} 
+                        <input
+                          type="checkbox"
+                          checked={selectedHistoryIds.includes(h.id)}
                           onChange={() => handleToggleSelectRow(h.id)}
                           style={{ cursor: 'pointer' }}
                         />
@@ -1323,8 +1508,8 @@ export default function Forecast() {
                     <td>
                       {editingHistoryId === h.id ? (
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <input 
-                            className="form-input" 
+                          <input
+                            className="form-input"
                             style={{ height: 28, fontSize: '12px', padding: '2px 8px' }}
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
@@ -1344,10 +1529,12 @@ export default function Forecast() {
                               {new Date(h.created_at.includes('Z') || h.created_at.includes('+') ? h.created_at : h.created_at + 'Z').toLocaleString()}
                             </span>
                           </div>
-                          <div 
+                          <div
                             title={[
                               'Forecast Parameters:',
                               `• Periods: ${h.parameters?.forecast_periods ?? h.forecast_periods ?? 'N/A'}`,
+                              `• Model: ${h.parameters?.model_type ?? 'ExtraTrees'}`,
+                              `• Frequency: ${h.parameters?.frequency ?? 'Auto'}`,
                               `• Seasonality: ${h.parameters?.seasonality_period ?? h.seasonality_period ?? 'N/A'}`,
                               `• Aggregation: ${h.aggregation ?? h.parameters?.aggregation ?? 'N/A'}`,
                               `• Confidence: ${(() => {
@@ -1364,7 +1551,7 @@ export default function Forecast() {
                             onClick={() => handleRestoreParameters(h)}
                             title="Restore parameters to form"
                           ><RotateCcw size={14} /></button>
-                          <button 
+                          <button
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}
                             onClick={() => { setEditingHistoryId(h.id); setEditingName(h.name || ''); }}
                           ><Edit2 size={12} /></button>
@@ -1408,17 +1595,17 @@ export default function Forecast() {
                         </button>
                         {confirmDeleteHistoryId === h.id ? (
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 8 }}>
-                            <button 
-                              className="btn btn-danger" 
-                              style={{ padding: '4px 8px' }} 
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: '4px 8px' }}
                               onClick={() => handleDeleteHistory(h.id)}
                               title="Confirm Delete"
                             >
                               <Check size={14} />
                             </button>
-                            <button 
-                              className="btn btn-secondary" 
-                              style={{ padding: '4px 8px' }} 
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px' }}
                               onClick={() => setConfirmDeleteHistoryId(null)}
                               title="Cancel"
                             >
@@ -1426,9 +1613,9 @@ export default function Forecast() {
                             </button>
                           </div>
                         ) : (
-                          <button 
-                            className="btn btn-danger" 
-                            style={{ padding: '8px', background: 'transparent', color: '#ef4444', borderColor: 'transparent' }} 
+                          <button
+                            className="btn btn-danger"
+                            style={{ padding: '8px', background: 'transparent', color: '#ef4444', borderColor: 'transparent' }}
                             onClick={() => setConfirmDeleteHistoryId(h.id)}
                             title="Delete Forecast"
                           >
@@ -1446,35 +1633,54 @@ export default function Forecast() {
 
           {historyTotalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 16 }}>
-              <button 
-                className="btn btn-secondary" 
-                disabled={historyCurrentPage === 1} 
+              <button
+                className="btn btn-secondary"
+                disabled={historyCurrentPage === 1}
+                onClick={() => setHistoryCurrentPage(1)}
+                style={{ padding: '4px 12px' }}
+              >
+                <ChevronLeft size={16} /> First
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                disabled={historyCurrentPage === 1}
                 onClick={() => setHistoryCurrentPage(prev => Math.max(prev - 1, 1))}
                 style={{ padding: '4px 12px' }}
               >
                 <ChevronLeft size={16} /> Previous
               </button>
-              
+
               <span style={{ fontSize: 14, color: '#64748b' }}>
                 Page <strong>{historyCurrentPage}</strong> of <strong>{historyTotalPages}</strong>
               </span>
 
-              <button 
-                className="btn btn-secondary" 
-                disabled={historyCurrentPage === historyTotalPages} 
+              <button
+                className="btn btn-secondary"
+                disabled={historyCurrentPage === historyTotalPages}
                 onClick={() => setHistoryCurrentPage(prev => Math.min(prev + 1, historyTotalPages))}
                 style={{ padding: '4px 12px' }}
               >
                 Next <ChevronRight size={16} />
               </button>
+
+              <button
+                className="btn btn-secondary"
+                disabled={historyCurrentPage === historyTotalPages}
+                onClick={() => setHistoryCurrentPage(historyTotalPages)}
+                style={{ padding: '4px 12px' }}
+              >
+                Last <ChevronRight size={16} />
+              </button>
             </div>
           )}
+
         </div>
       )}
 
       {showBackToTop && (
-        <button 
-          className="back-to-top" 
+        <button
+          className="back-to-top"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           title="Back to Top"
         >
@@ -1482,14 +1688,14 @@ export default function Forecast() {
         </button>
       )}
       {showRestoreConfirmModal && (
-        <div 
-          className="modal-overlay" 
+        <div
+          className="modal-overlay"
           onClick={(e) => { if (e.target === e.currentTarget) closeRestoreModal(); }}
           style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
           <div className="card modal-content" style={{ width: 400, padding: 24, textAlign: 'center' }}>
             <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Confirm Restore Parameters</h3>
             <p style={{ color: '#64748b', marginBottom: 24 }}>

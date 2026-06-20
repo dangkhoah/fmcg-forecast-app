@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     MODEL_SERVICE_URL: str = "http://localhost:8001"
     UPLOAD_DIR: str = str(ROOT_DIR / "uploads")
     MODEL_SERVICE_TIMEOUT: int = 120
-    LOG_SQL: bool = True
+    LOG_SQL: bool = False
 
     class Config:
         env_file = ".env"
