@@ -166,6 +166,7 @@ Thumbs.db
 *.csv
 *.txt
 *.png
+*.pybk
 llm_processing.log*
 crawler_errors.log*
 scraper_errors.log*
@@ -184,7 +185,6 @@ model-service/reference/
 Namitech_next*
 *opencode-chat*
 *opencode_session*
-tests/
 .playwright-mcp/
 train_data.csv
 start_dont-print-on-console.ps1
