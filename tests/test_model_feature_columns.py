@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "model-service"))
+# sys.path.append(os.path.join(os.path.dirname(__file__), "..", "model-service"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "model-service"))
 
 from app.models import ForecastEngine
 
