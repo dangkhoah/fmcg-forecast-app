@@ -1,9 +1,15 @@
-﻿chcp 65001
+﻿
 Write-Host "=== FMCG Sales Forecast App ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🔄 Starting services..." -ForegroundColor Yellow
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Install/update dependencies inside virtual environments
+<# Write-Host "📦 Checking and updating virtual environment dependencies..." -ForegroundColor Yellow
+& "$root\backend\.venv\Scripts\pip.exe" install -q -r "$root\backend\requirements.txt" -r "$root\backend\requirements-dev.txt"
+& "$root\model-service\.venv\Scripts\pip.exe" install -q -r "$root\model-service\requirements.txt" -r "$root\model-service\requirements-dev.txt"
+Write-Host "✅ Dependencies verified." -ForegroundColor Green #>
 
 $LogFile = Join-Path $root "app_services.log"
 Write-Host "Logging all output to: $LogFile" -ForegroundColor Yellow
@@ -12,8 +18,8 @@ Write-Host "Logging all output to: $LogFile" -ForegroundColor Yellow
 $modelJob = Start-Job -Name "Model-Service" -ScriptBlock {
 	
     param($path)
-    [Console]::OutputEncoding = [System.Text.UTF8Encoding]
-    $OutputEncoding = [System.Text.UTF8Encoding]
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+    $OutputEncoding = [System.Text.UTF8Encoding]::new()
     
     Set-Location $path
     & ".\.venv\Scripts\python.exe" -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir app --reload-exclude="__pycache__/*" --log-config logging.ini 2>&1
@@ -57,6 +63,8 @@ try {
                         $color = if ($job.Name -eq "Model-Service") { "Yellow" } else { "Cyan" }
 
                         $lineStr = [string]$line
+                        # $utf8Bytes = [System.Text.Encoding]::UTF8.GetBytes($lineStr) # no need
+                        # $lineStr = [System.Text.Encoding]::UTF8.GetString($utf8Bytes) # no need
                         
                         # Check if the line already starts with a timestamp (from Uvicorn's logging.ini)
                         if ($lineStr -match "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - ") {
@@ -82,10 +90,10 @@ try {
 }
 finally {
     Write-Host "`nStopping services..." -ForegroundColor Red
-    Stop-Job $modelJob, $backendJob
-    Remove-Job $modelJob, $backendJob
-    Get-Job -Name "Model-Service", "Backend" -ErrorAction SilentlyContinue | Stop-Job -Force -ErrorAction SilentlyContinue
-    Get-Job -Name "Model-Service", "Backend" -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue
-
+    # Stop-Job $modelJob, $backendJob
+    # Remove-Job $modelJob, $backendJob
+    # Get-Job -Name "Model-Service", "Backend" -ErrorAction SilentlyContinue | Stop-Job -Force -ErrorAction SilentlyContinue
+    # Get-Job -Name "Model-Service", "Backend" -ErrorAction SilentlyContinue | Remove-Job -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name python -Force
     Write-Host "All services stopped. Exiting." -ForegroundColor Red
 }

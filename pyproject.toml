@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fmcg-forecast-app"
+version = "0.0.0"
+dependencies = []
+
+[tool.uv]
+# Instruct uv to install everything from these requirement files when sync is run
+# (uv will read them automatically if they exist in the root folder)
+# requirements = ["requirements.txt", "model-service/requirements-dev.txt"]
+# requirements = ["requirements.txt", "requirements-dev.txt"]
+dev-dependencies = ["-r requirements.txt", "-r requirements-dev.txt"]
+
+[tool.setuptools.packages.find]
+# where = ["."]
+include = ["backend", "model-service", "frontend", "scratch"]

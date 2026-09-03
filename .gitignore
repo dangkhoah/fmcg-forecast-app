@@ -158,11 +158,14 @@ Thumbs.db
 # Sensitive Credentials / Secrets / Local files
 *credentials.json
 *firebase-adminsdk*.json
-.env
 
 # Large datasets / logs
 *.log
 *.log.*
+*.lock
+*.csv
+*.txt
+*.png
 llm_processing.log*
 crawler_errors.log*
 scraper_errors.log*
@@ -172,3 +175,18 @@ united_arab_emirates_error.log*
 out.txt
 raw_data.txt
 out.xlsx
+*_bk*
+*_copy*
+*copy*
+_debug_cache*.py
+backend/uploads/
+model-service/reference/
+Namitech_next*
+*opencode-chat*
+*opencode_session*
+tests/
+.playwright-mcp/
+train_data.csv
+start_dont-print-on-console.ps1
+start_loop 1 change detected.ps1
+

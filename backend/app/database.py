@@ -28,3 +28,15 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+'''
+        # Migrate: add model_key to training_history if missing
+        from sqlalchemy import inspect, text
+        def _migrate(conn_sync):
+            inspector = inspect(conn_sync)
+            cols = [c["name"] for c in inspector.get_columns("training_history")]
+            if "model_key" not in cols:
+                conn_sync.execute(text("ALTER TABLE training_history ADD COLUMN model_key VARCHAR"))
+                import logging
+                logging.getLogger(__name__).info("Added model_key column to training_history")
+        await conn.run_sync(_migrate)
+'''

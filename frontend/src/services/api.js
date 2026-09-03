@@ -56,6 +56,7 @@ export const forecast = {
   deleteHistory: (id) => api.delete(`/forecast/${id}`),
   deleteAllHistory: () => api.delete('/forecast/history/clear'),
   clearCache: () => api.post('/forecast/clear-cache'),
+  trainedModels: () => api.get('/forecast/trained-models'),
 };
 
 export const exportApi = {

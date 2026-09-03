@@ -1,13 +1,36 @@
+import hashlib
 import os
 import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import time, logging
 from joblib import Memory
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
+from sklearn.svm import SVR
+from sklearn.model_selection import train_test_split
+from joblib import dump, load
 from sklearn.preprocessing import LabelEncoder
+
+try:
+    from xgboost import XGBRegressor
+    HAS_XGB = True
+except ImportError:
+    HAS_XGB = False
+
+try:
+    import lightgbm as lgb
+    HAS_LGB = True
+except ImportError:
+    HAS_LGB = False
+
+try:
+    from prophet import Prophet
+    HAS_PROPHET = True
+except ImportError:
+    HAS_PROPHET = False
 
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
@@ -15,15 +38,17 @@ logger = logging.getLogger(__name__)
 # Initialize Disk Cache at module level to ensure stable hashing (avoids hashing mutable 'self' state)
 cache_dir = os.path.join(os.path.dirname(__file__), "..", "cache")
 memory = Memory(cache_dir, verbose=0)
-
-# Global flag to indicate if we're in training mode (used for logging inside the cached function)
-# IS_TRAINING_MODE = False
+CACHE_FUNC_DIR = os.path.join(cache_dir, "joblib", "app", "models", "_run_forecast_pipeline_cached")
+# Global flag to detect pipeline cache HIT vs MISS.
+# Set to True by _run_forecast_pipeline_cached when its body executes (MISS).
+# Left unchanged on HIT (joblib returns stored result without executing body).
+_pipeline_cache_missed = False
 
 class ForecastEngine:
     """
     Engine responsible for training ML models and generating sales forecasts.
     
-    Uses an ExtraTreesRegressor ensemble to handle non-linear relationships
+    Uses an ensemble or regression models to handle non-linear relationships
     in FMCG data such as seasonality and price elasticity.
     """
     def __init__(self):
@@ -37,9 +62,28 @@ class ForecastEngine:
         self._last_trained_file = None
         self.mape = None
         self.cached = True  # Indicates if reference data has been loaded
+        self.training_metadata: dict = {}
+        # New attribute for hyper‑parameters
+        self.hyper_params: dict = {}
         # Use ISO-week semantics (weeks start on Monday) internally.
         # For frontend compatibility we may normalize this when returning results.
-        self.detected_freq = "W-MON"
+        self.detected_freq = "W-MON"  # "D"
+        # Persistence setup
+        self.model_path = os.path.join(os.path.dirname(__file__), "..", "cache", "forecast_engine.joblib")
+        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+        if os.path.exists(self.model_path):
+            try:
+                persisted = load(self.model_path)
+                self.model = persisted.get("model")
+                self.feature_columns = persisted.get("feature_columns")
+                self.label_encoders = persisted.get("label_encoders", {})
+                self.product_outlet_map = persisted.get("product_outlet_map")
+                self.detected_freq = persisted.get("detected_freq", self.detected_freq)
+                self.mape = persisted.get("mape")
+                self.cached = True
+                logger.info(f"✅ Loaded persisted ForecastEngine model from {self.model_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load persisted model: {e}")
 
     def load_reference_data(self, ref_dir: str = None):
         """
@@ -78,7 +122,7 @@ class ForecastEngine:
         else:
             logger.warning(f"Reference file not found: {week_path}. Calendar-related features will be disabled.")
 
-    def _prepare_training_data(self, file_path: str, date_format: str | None = None, seasonality_period: int = 12) -> pd.DataFrame:
+    def _prepare_training_data(self, file_path: str, date_format: str | None = None, seasonality_period: int = 52) -> pd.DataFrame:
         """
         Cleans raw input data and merges it with reference datasets.
         
@@ -121,13 +165,16 @@ class ForecastEngine:
                     elif 28 <= mode_diff <= 31: self.detected_freq = "ME"
                     else: self.detected_freq = "W"
         except Exception:
-            logger.error(f"Error occurred while detecting frequency for {file_path}")
+            logger.error(f"⚠️ Error occurred while detecting frequency for {file_path}")
             self.detected_freq = "W"
+        
+        # logger.warning(f"Detected frequency for {file_path}: {self.detected_freq}")
 
         if self.prod_price is not None and self.date_week is not None:
+            date_week = self.date_week.copy()
             # Ensure date in date_week is also datetime64[ns]
-            self.date_week["date"] = pd.to_datetime(self.date_week["date"], format=date_format)
-            merged = pd.merge(self.prod_price, self.date_week, on="week_id", how="inner")
+            date_week["date"] = pd.to_datetime(date_week["date"], format=date_format)
+            merged = pd.merge(self.prod_price, date_week, on="week_id", how="inner")
             
             # Ensure product_identifier and outlet columns are typed correctly as numeric to avoid object/numeric merge conflicts
             df["product_identifier"] = pd.to_numeric(df["product_identifier"], errors="coerce")
@@ -168,6 +215,7 @@ class ForecastEngine:
         # Only select columns that actually exist in the uploaded file
         existing_meta = [c for c in meta_cols if c in df.columns]
         self.product_outlet_map = df[existing_meta].drop_duplicates().reset_index(drop=True)
+        logger.warning(f"✅ Product-outlet mapping created with {len(self.product_outlet_map)} unique combinations.")
 
         cols_to_drop = ["date", "week_id", "state", "category_of_product"]
         if "id" in df.columns:
@@ -180,9 +228,73 @@ class ForecastEngine:
 
         return features
 
-    def train(self, file_path: str, date_format: str | None = None, seasonality_period: int = 12, force_retrain: bool = False):
+    def _build_model(self):
+        name = self.best_model_name
+        hp = self.hyper_params or {}
+
+        if name == "ExtraTrees":
+            defaults = dict(n_estimators=100, max_features=None, bootstrap=True, oob_score=True, random_state=42, n_jobs=-1)
+            return ExtraTreesRegressor(**{**defaults, **hp})
+        elif name == "RandomForest":
+            defaults = dict(n_estimators=100, max_depth=None, oob_score=True, random_state=42, n_jobs=-1)
+            return RandomForestRegressor(**{**defaults, **hp})
+        elif name == "XGBoost":
+            if not HAS_XGB:
+                raise ImportError("XGBoost is not installed. Run `pip install xgboost`.")
+            defaults = dict(n_estimators=100, learning_rate=0.1, max_depth=6, random_state=42, n_jobs=-1)
+            return XGBRegressor(**{**defaults, **hp})
+        elif name == "LightGBM":
+            if not HAS_LGB:
+                raise ImportError("LightGBM is not installed. Run `pip install lightgbm`.")
+            defaults = dict(n_estimators=100, learning_rate=0.1, num_leaves=31, random_state=42, n_jobs=-1, verbose=-1)
+            return lgb.LGBMRegressor(**{**defaults, **hp})
+        elif name == "SVM":
+            defaults = dict(kernel='rbf', C=1.0, gamma='scale', epsilon=0.1)
+            return SVR(**{**defaults, **hp})
+        elif name == "Prophet":
+            if not HAS_PROPHET:
+                raise ImportError("Prophet is not installed. Run `pip install prophet`.")
+            return None  # handled separately
+        else:
+            raise ValueError(f"Unknown model: {name}")
+
+    def _compute_mape(self, y_true, y_pred):
+        non_zero = y_true != 0
+        if non_zero.any():
+            return float(np.mean(np.abs((y_true[non_zero] - y_pred[non_zero]) / y_true[non_zero])))
+        return 0.0
+
+    def _compute_dataset_hash(self, file_path: str) -> str:
+        try:
+            with open(file_path, "rb") as f:
+                return hashlib.md5(f.read()).hexdigest()
+        except Exception:
+            return ""
+
+    def _gather_feature_importances(self):
+        if hasattr(self.model, "feature_importances_"):
+            return self.model.feature_importances_.tolist()
+        if hasattr(self.model, "coef_"):
+            return self.model.coef_.tolist()
+        return None
+
+    def _populate_training_metadata(self, file_path: str, start_time: float):
+        self.training_metadata = {
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "dataset_path": file_path,
+            "dataset_hash": self._compute_dataset_hash(file_path),
+            "reference_data_loaded": self.prod_price is not None,
+            "training_duration": round(time.time() - start_time, 3),
+            "model_name": self.best_model_name,
+            "n_samples": None,
+            "n_features": len(self.feature_columns) if self.feature_columns else None,
+            "feature_importances": self._gather_feature_importances(),
+            "mape": self.mape,
+        }
+
+    def train(self, file_path: str, date_format: str | None = None, seasonality_period: int = 52, force_retrain: bool = False):
         """
-        Trains the ExtraTrees model on the provided dataset.
+        Trains the selected model on the provided dataset.
         
         Args:
             file_path: Path to the dataset.
@@ -193,37 +305,147 @@ class ForecastEngine:
         Returns:
             bool: True if training occurred, False if cached model was used.
         """
-        # Correct Caching Logic: 
-        # Skip training only if not forced AND we actually have a model in memory for this file.
-        # In a transient engine (from joblib miss), self.model is always None, so it will correctly train.
-        if not force_retrain and self.model is not None: # self.model is always None in a transient engine, so this condition will be False, and training will occur.
-            logger.info(f"⚡⚡ USING CACHED MODEL for {file_path} with model [{self.model}], skipping retraining.")
+        if not force_retrain and self.model is not None:
+            logger.info(f"ℹ️ Using cached model for {file_path}, skipping retraining.")
+            self.training_metadata["cached"] = True
             return False, (None, None)
 
+        train_start = time.time()
         data = self._prepare_training_data(file_path, date_format=date_format, seasonality_period=seasonality_period)
         X = data[self.feature_columns]
         y = data["sales"]
 
-        # Calculate validation MAPE
         try:
-            from sklearn.model_selection import train_test_split
-            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
-            eval_model = ExtraTreesRegressor(n_estimators=50, random_state=42, n_jobs=-1)
-            eval_model.fit(X_train, y_train)
-            val_preds = eval_model.predict(X_val)
-            non_zero_mask = y_val != 0
-            if non_zero_mask.any():
-                self.mape = float(np.mean(np.abs((y_val[non_zero_mask] - val_preds[non_zero_mask]) / y_val[non_zero_mask])))
+            if self.best_model_name == "Prophet":
+                result = self._train_prophet(file_path, date_format)
+                self._populate_training_metadata(file_path, train_start)
+                self.training_metadata["n_samples"] = len(y)
+                return result
             else:
-                self.mape = 0.0
+                self.model = self._build_model()
+                has_oob = hasattr(self.model, 'oob_score') and self.model.oob_score
+
+                if has_oob:
+                    self.model.fit(X, y)
+                    val_preds = self.model.oob_prediction_
+                else:
+                    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+                    self.model.fit(X_train, y_train)
+                    val_preds = self.model.predict(X_val)
+                    y = y_val
+
+                self._last_trained_file = file_path
+                self.mape = self._compute_mape(y, val_preds)
+                self._populate_training_metadata(file_path, train_start)
+                self.training_metadata["n_samples"] = len(y)
+                self.training_metadata["feature_importances"] = self._gather_feature_importances()
         except Exception as e:
-            logger.error(f"Error calculating MAPE: {e}")
+            logger.error(f"Error training model {self.best_model_name}: {e}")
             self.mape = None
-        
+            self.training_metadata["error"] = str(e)
+
         return True, (X, y)
 
+    def _train_prophet(self, file_path: str, date_format: str | None = None):
+        if not HAS_PROPHET:
+            raise ImportError("Prophet is not installed.")
+        if file_path.lower().endswith((".xls", ".xlsx")):
+            raw = pd.read_excel(file_path)
+        else:
+            raw = pd.read_csv(file_path)
+        raw["date"] = pd.to_datetime(raw["date"], format=date_format)
+        agg = raw.groupby("date", as_index=False)["sales"].sum()
+        agg.columns = ["ds", "y"]
+        prophet_params = {k: v for k, v in (self.hyper_params or {}).items()
+                          if k in ("seasonality_mode", "yearly_seasonality", "weekly_seasonality", "daily_seasonality", "changepoint_prior_scale")}
+        defaults = dict(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=False, seasonality_mode="additive")
+        self.model = Prophet(**{**defaults, **prophet_params})
+        self.model.fit(agg)
+        future = self.model.make_future_dataframe(periods=0)
+        forecast = self.model.predict(future)
+        val_preds = forecast["yhat"].values[:len(agg)]
+        self._last_trained_file = None
+        self.mape = self._compute_mape(agg["y"].values, val_preds)
+        return True, (None, None)
+
+    def persist_model(self, model_key: str | None = None):
+        path = self.model_path
+        if model_key:
+            models_dir = os.path.join(os.path.dirname(__file__), "..", "cache", "models")
+            os.makedirs(models_dir, exist_ok=True)
+            path = os.path.join(models_dir, f"{model_key}.joblib")
+        dump({
+            "model": self.model,
+            "feature_columns": self.feature_columns,
+            "label_encoders": self.label_encoders,
+            "product_outlet_map": self.product_outlet_map,
+            "detected_freq": self.detected_freq,
+            "mape": self.mape,
+            "model_key": model_key,
+            "metadata": self.training_metadata,
+        }, path)
+        logger.info(f"Persisted trained model to {path}")
+
+    def load_trained_model(self, model_key: str) -> bool:
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "cache", "models")
+        path = os.path.join(models_dir, f"{model_key}.joblib")
+        # logger.info(f"🎯 Attempting to load trained model '{model_key}' from {path}")
+        
+        if not os.path.exists(path):
+            logger.warning(f"❌ Trained model not found: {path}")
+            return False
+        try:
+            data = load(path)
+            self.model = data.get("model")
+            self.feature_columns = data.get("feature_columns")
+            self.label_encoders = data.get("label_encoders", {})
+            self.product_outlet_map = data.get("product_outlet_map")
+            self.detected_freq = data.get("detected_freq", self.detected_freq)
+            self.mape = data.get("mape")
+            self.training_metadata = data.get("metadata", {})
+            logger.info(f"✅ Loaded trained model '{self.model}' with model key '{model_key}' from {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load trained model '{model_key}': {e}")
+            return False
+
+    @staticmethod
+    def list_trained_models() -> list[dict]:
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "cache", "models")
+        if not os.path.exists(models_dir):
+            return []
+        results = []
+        for fname in os.listdir(models_dir):
+            if fname.endswith(".joblib"):
+                model_key = fname[:-7]
+                fpath = os.path.join(models_dir, fname)
+                mtime = os.path.getmtime(fpath)
+                size = os.path.getsize(fpath)
+                results.append({"model_key": model_key, "file": fname, "modified": mtime, "size": size})
+        results.sort(key=lambda x: x["modified"], reverse=True)
+        return results
+
+    @staticmethod
+    def load_trained_model_metadata(model_key: str) -> dict | None:
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "cache", "models")
+        path = os.path.join(models_dir, f"{model_key}.joblib")
+        if not os.path.exists(path):
+            return None
+        try:
+            data = load(path)
+            meta = data.get("metadata", {})
+            meta["model_key"] = data.get("model_key", model_key)
+            meta["mape"] = data.get("mape")
+            meta["detected_freq"] = data.get("detected_freq")
+            meta["n_features"] = len(data.get("feature_columns", []))
+            meta["n_estimators"] = data.get("model").n_estimators if data.get("model") and hasattr(data["model"], "n_estimators") else None
+            meta["file_size"] = os.path.getsize(path)
+            return meta
+        except Exception:
+            return None
+
     # Creating the "Future" Skeleton
-    def _generate_future_records(self, num_periods: int, seasonality_period: int = 12) -> pd.DataFrame:
+    def _generate_future_records(self, num_periods: int, seasonality_period: int = 52) -> pd.DataFrame:
         """
         Generates a placeholder DataFrame for future dates to be predicted.
         
@@ -234,16 +456,13 @@ class ForecastEngine:
         Returns:
             pd.DataFrame: A skeleton containing dates, products, and prices."""
         records = []
-        last_date = getattr(self, "max_date", pd.Timestamp("2014-03-01"))
+        last_date = getattr(self, "max_date", pd.Timestamp("2024-03-04"))
         freq = getattr(self, "detected_freq", "W")
 
-        future_dates = pd.date_range(
-            start=last_date,
-            periods=num_periods + 1,
-            freq=freq,
-        )[1:] # Skip the first date as it is the last known date
+        # future_dates = pd.date_range(start=last_date, periods=num_periods + 1, freq=freq,)[1:] # Skip the first date as it is the last known date
+        future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=num_periods, freq=freq,) # do not skip the first date
 
-        avg_price = self.prod_price["sell_price"].mean() if self.prod_price is not None else 0
+        # avg_price = self.prod_price["sell_price"].mean() if self.prod_price is not None else 0
         # Calculate avg price per product for more accurate baseline features
         prod_prices = {}
         if self.prod_price is not None:
@@ -298,7 +517,7 @@ class ForecastEngine:
         self,
         file_path: str,
         forecast_periods: int = 12,
-        seasonality_period: int = 12,
+        seasonality_period: int = 52,
         confidence_level: float = 0.95,
         aggregation: str = "mean",
         model_type: str = "ExtraTrees",
@@ -309,26 +528,38 @@ class ForecastEngine:
         """
         Public prediction interface with persistent disk caching.
         """
+        start_time = time.time()
         if force_retrain:
-            # Bypass cache and execute fresh
-            # Pass force_retrain to _execute_predict_logic
+            logger.info("📦 Pipeline cache BYPASSED (force_retrain=True)")
             return self._execute_predict_logic(model_type, file_path, forecast_periods, seasonality_period, confidence_level, aggregation, frequency, date_format, force_retrain)
 
-        # Call the standalone module-level function for caching to avoid hashing 'self'.
-        # We pass the DataFrames as arguments; joblib hashes their content efficiently.
-        result =  _run_forecast_pipeline_cached(model_type,
-            file_path, forecast_periods, seasonality_period, 
+        # Use a global flag to detect pipeline cache HIT vs MISS reliably.
+        # _run_forecast_pipeline_cached sets this to True only when its function body
+        # actually executes (MISS). On a HIT, joblib returns the stored result without
+        # executing the body, so the flag stays False.
+        global _pipeline_cache_missed
+        _pipeline_cache_missed = False
+
+        result = _run_forecast_pipeline_cached(
+            model_type, file_path, forecast_periods, seasonality_period,
             confidence_level, aggregation, frequency, date_format,
-            self.prod_price, self.date_week,
-            force_retrain # Pass force_retrain to the cached function
+            self.prod_price, self.date_week, force_retrain,
         )
-        
-        logger.info(f'ℹ️ Just before returning from predict(), RESULT["CACHED"]: {result.get("cached")}, training_time: {result.get("training_time", 0)}s, detected_freq: {result.get("detected_freq")}')
-        
-        if self.cached: # not cached mean no writing to disk, so we can set training_time to 0.0
-            result["cached"] = True
-            result["training_time"] = 0.0
-        logger.info(f"⚡ USING CACHED MODE - self.cached (default): {self.cached}, RESULT[\"CACHED\"]: {result['cached']}, training_time: {result.get('training_time', 0):.2f}s, detected_freq: {result.get('detected_freq')}")
+
+        pipeline_hit = not _pipeline_cache_missed
+        status = "HIT" if pipeline_hit else "MISS"
+        logger.info(f"📦 Pipeline cache {status} — {CACHE_FUNC_DIR}/")
+
+        # training_time from the cached function is always the original ML execution time
+        if not pipeline_hit:
+            logger.info(f"📦 Fresh execution — training_time: {result.get('training_time', 'N/A')}s")
+        else:
+            logger.info(f"📦 Cache HIT — training_time: {result.get('training_time', 'N/A')}s (from original run), processing_time: {time.time() - start_time:.2f}s")
+            result["training_time"] = round(time.time() - start_time, 2)  # Update training_time to reflect the time taken for this cached call
+
+        result["cached"] = pipeline_hit
+
+        logger.info(f"⏳ Predict done — training_time: {result.get('training_time', 'N/A')}s, model: {self.model.__class__.__name__ if self.model else model_type}")
         return result
     
     def _execute_predict_logic(
@@ -347,14 +578,15 @@ class ForecastEngine:
         Internal method that performs the actual heavy lifting.
         This is what joblib hashes and stores to disk.
         """
-        # global IS_TRAINING_MODE
-        start_train = time.time()
-        # Since this method might be called in a new process or via cache miss, 
-        # Pass the force_retrain value received by _execute_predict_logic to the train method to ensure it behaves correctly in both cached and non-cached scenarios.
+        
+        exec_start = time.time()
         is_trained, (X, y) = self.train(file_path, date_format=date_format, seasonality_period=seasonality_period, force_retrain=force_retrain)
 
         self.cached = not is_trained # If we trained, then cached is False; if we didn't train (used cache), then cached is True
-        logger.info(f"🟢 Training mode for {file_path}. Starting model training.")
+        logger.info(f"🟢 Training mode for {file_path}. Starting model training (cached: {self.cached}).")
+        
+        if model_type != "MovingAverage":
+            self.best_model_name = model_type
         if frequency:
             self.detected_freq = frequency
 
@@ -364,7 +596,7 @@ class ForecastEngine:
 
         if model_type == "MovingAverage":
             # Load data to calculate historical averages
-            data = self._prepare_training_data(file_path, date_format=date_format, seasonality_period=seasonality_period)
+            data = self._prepare_training_data(file_path, date_format=date_format, seasonality_period=seasonality_period) # already called in train(), but we need it here for averages
             # Calculate mean sales per product and outlet
             averages = data.groupby(["product_identifier", "outlet"])["sales"].mean().reset_index()
             averages.rename(columns={"sales": "sales_prediction"}, inplace=True)
@@ -380,15 +612,15 @@ class ForecastEngine:
             future['upper'] = predictions
             is_trained = False # SMA doesn't "train" in the ML sense
             self.cached = False # Not training for Moving Average
-            train_duration = 0.0
+            train_duration = 0.1
         else:
             # ExtraTrees path
             # Use reindex to ensure future data has exact same columns as training data, filling missing with 0
             X_future = future.reindex(columns=self.feature_columns, fill_value=0)
 
-            if self.model is None or force_retrain: # If we're in training mode, we should fit the model regardless of self.model state
+            if self.model is None: # If self.model is not set (e.g. fallback), set it up
                 self.model = ExtraTreesRegressor(
-                    n_estimators=100, max_features=None, verbose=0, n_jobs=-1
+                    n_estimators=100, max_features=None, bootstrap=True, oob_score=True, random_state=42, n_jobs=-1
                 )
                 self.model.fit(X, y)
                 self._last_trained_file = file_path
@@ -402,7 +634,7 @@ class ForecastEngine:
             future['lower'] = lower_bounds if lower_bounds is not None else predictions
             future['upper'] = upper_bounds if upper_bounds is not None else predictions
 
-        # Format as a list of detailed records (rows)
+        train_duration = round(time.time() - exec_start, 2)
         records = []
         for _, row in future.iterrows():
             prod_id = row.get("product_identifier", 0)
@@ -430,9 +662,9 @@ class ForecastEngine:
 
         chart_agg["date_str"] = chart_agg["date"].dt.strftime("%Y-%m-%d")
         
-        train_duration = time.time() - start_train if is_trained else 0
+        # train_duration = time.time() - start_train # if is_trained else 0
 
-        logger.info(f"⏳ Predicting with model for {file_path}. Model: {self.model}, train_duration: {train_duration:.2f}, force_retrain: {force_retrain}, is_trained: {is_trained}, self.cached: {self.cached}")
+        # logger.info(f"⏳ Predicting with model for {file_path}. Model: {self.model}/{self.model.__class__.__name__}, train duration: {train_duration:.2f}, force_retrain: {force_retrain}, is_trained: {is_trained}, self.cached: {self.cached}")
         
         return {
             "dates": chart_agg["date_str"].tolist(),
@@ -440,35 +672,82 @@ class ForecastEngine:
             "lower_bound": chart_agg["lower"].round(2).tolist(),
             "upper_bound": chart_agg["upper"].round(2).tolist(),
             "detailed_records": records, # This stores the "multiple records"
-            "cached": self.cached, # : not is_trained
+            "cached": not is_trained, # self.cached
             "detected_freq": ("W" if getattr(self, "detected_freq", "W-MON").startswith("W") else getattr(self, "detected_freq", "W-MON")),
             "training_time": round(train_duration, 2),
-            "mape": self.mape
+            "mape": self.mape,
+            "model_type": model_type,
+            # "model": self.model,
         }
 
 
 # Standalone function to handle joblib disk caching without hashing the mutable engine instance.
 # This function is only executed on a cache miss.
 @memory.cache
-def _run_forecast_pipeline_cached(model_type, file_path, forecast_periods, seasonality_period, 
-    confidence_level, aggregation, frequency, date_format,prod_price, date_week,
-    force_retrain # Add force_retrain to the cached function's signature
+def _train_model_cached(
+    file_path, date_format, seasonality_period, model_type, prod_price, date_week,
 ):
-    logger.info("ℹ️ CACHE MISS: Executing _run_forecast_pipeline_cached. This should not appear on the second run.")
-    
-    # global IS_TRAINING_MODE
-    # IS_TRAINING_MODE = True # Set global flag to indicate we're in training mode (used for logging inside the cached function)
-    
-    # Create a transient engine instance to perform the work using the provided maps.
-    # This engine lives only for the duration of this call (Transient/Temporary  Engine) and is not the same as the long-lived engine instance used for caching logic.
-    engine = ForecastEngine() # This is a new, blank engine that will be used for this specific prediction task. It will not retain any state after this function finishes, which is ideal for caching.
-    # The reference dataframes (prod_price, date_week) that were passed as arguments are assigned to the prod_price and date_week attributes of this transient engine instance. This makes them available for methods like _prepare_training_data and _generate_future_records within this temporary engine.
+    """Train a model and return serializable state.
+
+    Cached by dataset + reference data **only** — NOT by forecast parameters
+    (forecast_periods, confidence_level, aggregation, etc.).  This means
+    changing any forecast parameter reuses the same trained model.
+    """
+    logger.info("ℹ️ TRAIN CACHE MISS: Training model from scratch.")
+    engine = ForecastEngine()
     engine.prod_price = prod_price
     engine.date_week = date_week
-    engine.cached = False # This transient engine is not using a cached model; it's a fresh instance for this specific prediction task.
-    
-    # Execute the internal logic. Note: force_retrain=True inside is correct here 
-    # because we want this transient instance to fit the model if we've reached this point.
+    engine.best_model_name = model_type
+    engine._last_trained_file = file_path
+
+    is_trained, (X, y) = engine.train(
+        file_path, date_format=date_format, seasonality_period=seasonality_period,
+        force_retrain=True,
+    )
+
+    return {
+        "model": engine.model,
+        "feature_columns": engine.feature_columns,
+        "label_encoders": engine.label_encoders,
+        "product_outlet_map": engine.product_outlet_map,
+        "detected_freq": engine.detected_freq,
+        "mape": engine.mape,
+        "training_metadata": engine.training_metadata,
+        "max_date": engine.max_date,
+    }
+
+
+@memory.cache
+def _run_forecast_pipeline_cached(model_type, file_path, forecast_periods, seasonality_period, 
+    confidence_level, aggregation, frequency, date_format, prod_price, date_week,
+    force_retrain # Add force_retrain to the cached function's signature
+):
+    global _pipeline_cache_missed
+    _pipeline_cache_missed = True
+    logger.info("ℹ️ℹ️ CACHE MISS: Executing _run_forecast_pipeline_cached.")
+
+    # Step 1: Get a trained model — cached by dataset params (separate key)
+    trained = _train_model_cached(
+        file_path, date_format, seasonality_period, model_type, prod_price, date_week,
+    )
+
+    # Step 2: Set up a transient engine with the trained model
+    engine = ForecastEngine()
+    engine.model = trained["model"]
+    engine.feature_columns = trained["feature_columns"]
+    engine.label_encoders = trained["label_encoders"]
+    engine.product_outlet_map = trained["product_outlet_map"]
+    engine.detected_freq = trained["detected_freq"]
+    engine.mape = trained["mape"]
+    engine.training_metadata = trained["training_metadata"]
+    engine.max_date = trained["max_date"]
+    engine.prod_price = prod_price
+    engine.date_week = date_week
+    engine.cached = False
+    engine._last_trained_file = file_path
+    engine.best_model_name = model_type
+
+    # Step 3: Run prediction — train() skips since model is already set
     return engine._execute_predict_logic(model_type, file_path, forecast_periods, seasonality_period, 
         confidence_level, aggregation, frequency, date_format,
         force_retrain # Pass force_retrain to _execute_predict_logic

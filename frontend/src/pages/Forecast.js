@@ -41,6 +41,8 @@ export default function Forecast() {
   const [seasonality, setSeasonality] = useState(() => getStoredOrDefault('fmcg_seasonality', 12, Number));
   const [confidence, setConfidence] = useState(() => getStoredOrDefault('fmcg_confidence', 0.95, Number));
   const [forceRetrain, setForceRetrain] = useState(false);
+  const [trainedModels, setTrainedModels] = useState([]);
+  const [trainedModelKey, setTrainedModelKey] = useState('');
   const [loading, setLoading] = useState(false);
   /** @type {[ForecastData|null, Function]} */
   const [result, setResult] = useState(null);
@@ -69,20 +71,32 @@ export default function Forecast() {
   const [restoredFlash, setRestoredFlash] = useState(false);
   const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [showVersionForm, setShowVersionForm] = useState(false);
+  const [versionLabel, setVersionLabel] = useState('');
+  const [versionNotes, setVersionNotes] = useState('');
+  const [showVersionCompare, setShowVersionCompare] = useState(false);
+  const [selectedVersionIds, setSelectedVersionIds] = useState([]);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [loadingVersions, setLoadingVersions] = useState(false);
   const datasetDropdownRef = useRef(null);
   const chartRef = useRef(null);
   const historyRowsPerPage = 10;
 
   useEffect(() => {
     datasetsApi.list().then((r) => setDatasets(r.data));
+    fetch('/api/forecast/trained-models', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then((r) => r.ok ? r.json() : { models: [] })
+      .then((d) => setTrainedModels(d.models || []))
+      .catch(() => {});
     forecastApi.history().then((r) => {
       setHistory(r.data);
-      // Automatically load the most recent forecast result on initial page load
       if (r.data && r.data.length > 0) {
         setResult(r.data[0]);
         setActiveHistoryId(r.data[0].id);
       }
     }).catch(() => { });
+    loadVersions();
   }, []);
 
   // Click outside handler for dataset dropdown
@@ -243,12 +257,13 @@ export default function Forecast() {
     setSelectedOutlet('');
     setAggregation(getStoredOrDefault('fmcg_aggregation', 'mean'));
     setPeriods(getStoredOrDefault('fmcg_periods', 12, Number));
-    setSeasonality(getStoredOrDefault('fmcg_seasonality', 12, Number));
     setModelType(getStoredOrDefault('fmcg_model_type', 'ExtraTrees'));
     setFrequency(getStoredOrDefault('fmcg_frequency', ''));
     setChartType('line');
-    setShowPoints(true); // Reset showPoints to default (true)
+    setShowPoints(true);
     setConfidence(getStoredOrDefault('fmcg_confidence', 0.95, Number));
+    setTrainedModelKey('');
+    setForceRetrain(false);
     setResult(null);
     setActiveHistoryId(null);
     setProductDropdownSearchTerm(''); // Reset product dropdown search term
@@ -415,6 +430,56 @@ export default function Forecast() {
 
 
 
+  const loadVersions = async () => {
+    try {
+      const res = await fetch('/api/forecast/versions/', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      if (res.ok) setVersions(await res.json());
+    } catch (_) {}
+  };
+
+  const saveVersion = async () => {
+    if (!versionLabel.trim() || !result) return;
+    try {
+      await fetch('/api/forecast/versions/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({
+          forecast_id: result.id,
+          dataset_id: result.dataset_id,
+          dataset_name: result.dataset_name || 'Unknown',
+          version_label: versionLabel,
+          notes: versionNotes || null,
+          parameters: result.parameters || {},
+          result: { dates: result.dates, values: result.values, lower_bound: result.lower_bound, upper_bound: result.upper_bound },
+        }),
+      });
+      setShowVersionForm(false);
+      setVersionLabel('');
+      setVersionNotes('');
+      loadVersions();
+    } catch (_) {}
+  };
+
+  const deleteVersion = async (id) => {
+    try {
+      await fetch(`/api/forecast/versions/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      loadVersions();
+    } catch (_) {}
+  };
+
+  const compareVersions = async () => {
+    if (selectedVersionIds.length < 2) return;
+    setLoadingVersions(true);
+    try {
+      const res = await fetch(`/api/forecast/versions/compare?ids=${selectedVersionIds.join(',')}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      if (res.ok) {
+        setComparisonData(await res.json());
+        setShowVersionCompare(true);
+      }
+    } catch (_) {}
+    setLoadingVersions(false);
+  };
+
   const handleForecast = async () => {
     if (!selectedDataset) { toast.error('Please select a dataset'); return; }
     setLoading(true);
@@ -424,11 +489,12 @@ export default function Forecast() {
         forecast_periods: periods,
         seasonality_period: seasonality,
         confidence_level: confidence,
-        model_type: modelType,
+        model_type: trainedModelKey ? trainedModelKey.split('_')[0] : modelType,
         force_retrain: forceRetrain,
         frequency: frequency || null,
         aggregation: aggregation,
         date_format: dateFormat || null,
+        trained_model_key: trainedModelKey || null,
       });
       setResult(res.data);
       setActiveHistoryId(res.data.id);
@@ -652,9 +718,17 @@ export default function Forecast() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      // Try to extract the error message from the Blob response
-      const detail = err.response?.data?.detail || 'Export failed';
-      toast.error(detail);
+      if (err.response?.data instanceof Blob) {
+        err.response.data.text().then((text) => {
+          try {
+            toast.error(JSON.parse(text).detail || 'Export failed');
+          } catch {
+            toast.error('Export failed');
+          }
+        });
+      } else {
+        toast.error(err.response?.data?.detail || 'Export failed');
+      }
       console.error('Export Error:', err);
     } finally {
       setExporting(null);
@@ -980,9 +1054,23 @@ export default function Forecast() {
               <option value="MovingAverage">Simple Moving Average (Baseline)</option>
             </select>
             <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-              {modelType === 'ExtraTrees' ? 'Uses machine learning to find patterns.' : 'Uses historical averages per product.'}
+              {trainedModelKey ? 'Using a pre-trained model from the Train Model page.' : modelType === 'ExtraTrees' ? 'Uses machine learning to find patterns.' : 'Uses historical averages per product.'}
             </p>
           </div>
+          {trainedModels.length > 0 && (
+            <div className="form-group">
+              <label className="form-label" style={{ color: '#2563eb' }}>Use Trained Model <span style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 400 }}>(optional)</span></label>
+              <select className="form-select" value={trainedModelKey} onChange={(e) => { setTrainedModelKey(e.target.value); if (e.target.value) setForceRetrain(false); }}>
+                <option value="">-- Auto-train on forecast --</option>
+                {trainedModels.map((tm) => (
+                  <option key={tm.model_key} value={tm.model_key}>{tm.model_key}</option>
+                ))}
+              </select>
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                {trainedModelKey ? `Will use existing trained model. Force retrain is disabled.` : 'Leave empty to train a fresh model each time.'}
+              </p>
+            </div>
+          )}
           <div className="form-group">
             <label className="form-label">Dataset Frequency</label>
             <select className="form-select" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
@@ -992,30 +1080,31 @@ export default function Forecast() {
               <option value="ME">Monthly</option>
             </select>
           </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Forecast Periods</label>
-            <input className="form-input" style={{ width: 100 }} type="number" min={1} max={365} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} />
-          </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Seasonality Period</label>
-            <input className="form-input" style={{ width: 100 }} type="number" min={1} value={seasonality} onChange={(e) => setSeasonality(Number(e.target.value))} />
-          </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label className="form-label" style={{ width: 270, marginBottom: 0, whiteSpace: 'nowrap' }}>Confidence Level</label>
-            <input className="form-input" style={{ width: 100 }} type="number" min={0.5} max={0.99} step={0.01} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} />
-          </div>
-          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-            <input type="checkbox" id="force-retrain" checked={forceRetrain} onChange={(e) => setForceRetrain(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-            <label htmlFor="force-retrain" className="form-label" style={{ marginBottom: 0, cursor: 'pointer', color: '#dc2626', fontWeight: 600 }}>
-              Force Model Retraining
-            </label>
-          </div>
-          <div style={{ marginBottom: 20, padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={16} color="#64748b" />
-            <div style={{ fontSize: '12px', color: '#475569', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500, width: 150, marginBottom: 0 }}>Current Date Format:</span>
-              <strong style={{ lineHeight: 1 }}>{dateFormat || 'Automatic (Auto-detect)'}</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '12px', rowGap: '4px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Forecast Periods</label>
+              <input className="form-input" style={{ width: '100%' }} type="number" min={1} max={365} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} />
             </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Seasonality Period</label>
+              <input className="form-input" style={{ width: '100%' }} type="number" min={1} value={seasonality} onChange={(e) => setSeasonality(Number(e.target.value))} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Confidence Level</label>
+              <input className="form-input" style={{ width: 96 }} type="number" min={0.5} max={0.99} step={0.01} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">&nbsp;</label>
+              <label htmlFor="force-retrain" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#dc2626', fontWeight: 600, fontSize: 13, marginBottom: 0 }}>
+                <input type="checkbox" id="force-retrain" checked={forceRetrain} onChange={(e) => setForceRetrain(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }} />
+                Force Model Retraining
+              </label>
+            </div>
+          </div>
+          <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={16} color="#64748b" style={{ flexShrink: 0 }} />
+            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap' }}>Current Date Format:</span>
+            <strong style={{ fontSize: '12px', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dateFormat || 'Automatic (Auto-detect)'}</strong>
           </div>
           <button className="btn btn-primary" onClick={handleForecast} disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? (
@@ -1231,6 +1320,9 @@ export default function Forecast() {
                   {exporting?.id === result.id && exporting?.format === 'xlsx' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   Excel
                 </button>
+                <button className="btn btn-primary" onClick={() => setShowVersionForm(true)} style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Save size={14} /> Save as Version
+                </button>
               </div>
               {(result?.training_time !== undefined && result?.training_time !== null) && (
                 <div style={{ textAlign: 'center', marginTop: 12, fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
@@ -1254,7 +1346,7 @@ export default function Forecast() {
       </div>
 
       {result && result.detailed_records && (
-        <div className="card" id="detailed-records" style={{ marginTop: 24 }}>
+        <div className="card" id="detailed-records" style={{ marginTop: -24 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16 }}>
             <h2 className="card-title" style={{ margin: 0 }}>Detailed Forecast Records</h2>
 
@@ -1371,6 +1463,156 @@ export default function Forecast() {
         </div>
       )}
 
+      {versions.length > 0 && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Save size={18} /> Saved Versions
+            </h2>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {selectedVersionIds.length >= 2 && (
+                <button className="btn btn-primary" onClick={compareVersions} disabled={loadingVersions} style={{ padding: '4px 12px', fontSize: '13px' }}>
+                  {loadingVersions ? <Loader2 size={14} className="animate-spin" /> : <BarChart3 size={14} />} Compare ({selectedVersionIds.length})
+                </button>
+              )}
+            </div>
+          </div>
+          <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <table className="table">
+              <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
+                <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedVersionIds.length === versions.length && versions.length > 0}
+                      onChange={() => {
+                        if (selectedVersionIds.length === versions.length) setSelectedVersionIds([]);
+                        else setSelectedVersionIds(versions.map((v) => v.id));
+                      }}
+                    />
+                  </th>
+                  <th>Label</th>
+                  <th>Dataset</th>
+                  <th>Notes</th>
+                  <th>Date</th>
+                  <th style={{ width: 50 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {versions.map((v) => (
+                  <tr key={v.id} className={selectedVersionIds.includes(v.id) ? 'bg-indigo-50' : ''}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedVersionIds.includes(v.id)}
+                        onChange={() => setSelectedVersionIds((prev) =>
+                          prev.includes(v.id) ? prev.filter((i) => i !== v.id) : [...prev, v.id]
+                        )}
+                      />
+                    </td>
+                    <td className="text-sm font-medium">{v.version_label}</td>
+                    <td className="text-sm text-gray-500">{v.dataset_name}</td>
+                    <td className="text-sm text-gray-400">{v.notes || '-'}</td>
+                    <td className="text-sm text-gray-500">{new Date(v.created_at).toLocaleString()}</td>
+                    <td>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: '2px 6px', background: 'transparent', color: '#ef4444', borderColor: 'transparent' }}
+                        onClick={() => deleteVersion(v.id)}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showVersionForm && (
+        <div className="modal-overlay" onClick={() => setShowVersionForm(false)}>
+          <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 24, maxWidth: 400 }}>
+            <h3 className="text-base font-semibold mb-3">Save Forecast as Version</h3>
+            <div className="form-group mb-3">
+              <label className="form-label">Version Label</label>
+              <input
+                className="form-input"
+                value={versionLabel}
+                onChange={(e) => setVersionLabel(e.target.value)}
+                placeholder="e.g., v2.1, Baseline, Experiment A"
+              />
+            </div>
+            <div className="form-group mb-3">
+              <label className="form-label">Notes (optional)</label>
+              <textarea
+                className="form-input"
+                rows={3}
+                value={versionNotes}
+                onChange={(e) => setVersionNotes(e.target.value)}
+                placeholder="What's different in this version?"
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-primary" onClick={saveVersion} disabled={!versionLabel.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+                Save
+              </button>
+              <button className="btn btn-secondary" onClick={() => setShowVersionForm(false)} style={{ flex: 1, justifyContent: 'center' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVersionCompare && comparisonData && (
+        <div className="modal-overlay" onClick={() => setShowVersionCompare(false)}>
+          <div className="card" onClick={(e) => e.stopPropagation()} style={{ padding: 24, maxWidth: 700, width: '90%', maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 className="text-base font-semibold">Version Comparison</h3>
+              <button className="btn btn-secondary" onClick={() => { setShowVersionCompare(false); setComparisonData(null); }} style={{ padding: '2px 8px' }}>
+                <X size={16} />
+              </button>
+            </div>
+            {(() => {
+              const labels = comparisonData.comparison_data.map((p) => p.date);
+              const datasets = comparisonData.versions.map((v, idx) => {
+                const colors = ['#4338ca', '#16a34a', '#dc2626', '#ca8a04', '#7c3aed', '#06b6d4'];
+                return {
+                  label: v.version_label,
+                  data: comparisonData.comparison_data.map((p) => p.values[v.version_label] ?? null),
+                  borderColor: colors[idx % colors.length],
+                  backgroundColor: colors[idx % colors.length] + '33',
+                  borderWidth: 2,
+                  tension: 0.3,
+                };
+              });
+              const cmpChartData = { labels, datasets };
+              const cmpChartOptions = {
+                responsive: true,
+                plugins: {
+                  legend: { position: 'top' },
+                  title: { display: true, text: 'Prediction Version Comparison', font: { size: 14, weight: 600 } },
+                },
+                scales: {
+                  y: { beginAtZero: true, title: { display: true, text: 'Value' } },
+                },
+              };
+              return <Line data={cmpChartData} options={cmpChartOptions} />;
+            })()}
+          </div>
+        </div>
+      )}
+
+      {showVersionCompare && !comparisonData && loadingVersions && (
+        <div className="modal-overlay">
+          <div className="card" style={{ padding: 24, textAlign: 'center' }}>
+            <Loader2 size={24} className="animate-spin" /> Loading comparison...
+          </div>
+        </div>
+      )}
+
       {history.length > 0 && (
         <div className="card" id="history" style={{ marginTop: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1432,7 +1674,6 @@ export default function Forecast() {
                   </button>
                 )
               )}
-
               {confirmDeleteAll ? (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: 500 }}>Clear all?</span>

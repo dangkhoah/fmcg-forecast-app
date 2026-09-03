@@ -13,6 +13,7 @@ from app.models.forecast import ForecastResult, ForecastScenario
 from app.schemas.forecast import ForecastRequest, ForecastResponse, ScenarioCreate, ScenarioResponse
 from app.services.auth import get_current_user
 from app.services.forecast_client import call_forecast_model, get_client
+from app.services.model_cache import forecast_model_cache
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -20,20 +21,36 @@ logger = logging.getLogger(__name__)
 # Change from prefix="/api/forecast" to:
 router = APIRouter(prefix="/forecast", tags=["forecast"])
 
+@router.get("/trained-models")
+async def get_trained_models(current_user: User = Depends(get_current_user)):
+    client = get_client()
+    try:
+        resp = await client.get(f"{settings.MODEL_SERVICE_URL}/trained-models", timeout=10.0)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch trained models: {e}")
+        return {"models": []}
+
+
 @router.post("/clear-cache")
 async def clear_model_cache(current_user: User = Depends(get_current_user)):
     """
-    Proxies the request to clear the cache on the model service.
+    Clears both the in-memory backend cache and the model service disk cache.
     """
+    forecast_model_cache.clear()
+    logger.info(f"User {current_user.id} cleared the backend LRU cache.")
+
     client = get_client()
     clear_cache_url = str(settings.FORECAST_API_URL).replace("/predict", "/clear-cache")
     try:
         resp = await client.post(clear_cache_url, timeout=30.0)
         resp.raise_for_status()
         logger.info(f"User {current_user.id} cleared the model service cache.")
-        return resp.json()
+        return {"detail": "All caches cleared"}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to clear model cache: {str(e)}")
+        logger.warning(f"Model service cache clear failed: {e}")
+        return {"detail": "Backend cache cleared, model service cache may not have been cleared"}
 
 @router.post("/", response_model=ForecastResponse)
 async def run_forecast(
@@ -48,7 +65,7 @@ async def run_forecast(
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    # The DB may store absolute paths from a previous machine.
+    # The DB may store absolute paths from a previous machine
     # Resolve to the current uploads directory using just the filename.
     stored_path = dataset.file_path
     actual_path = os.path.join(settings.UPLOAD_DIR, os.path.basename(stored_path))
@@ -61,9 +78,10 @@ async def run_forecast(
         "model_type": payload.model_type,
         "frequency": payload.frequency,
         "force_retrain": payload.force_retrain,
-        "aggregation": payload.aggregation, # already included in additional_params if provided
+        "aggregation": payload.aggregation,
         "date_format": payload.date_format,
-        "original_filename": dataset.filename, # Pass the original filename
+        "original_filename": dataset.filename,
+        "trained_model_key": getattr(payload, "trained_model_key", None),
         **(payload.additional_params or {}),
     }
 
@@ -73,10 +91,11 @@ async def run_forecast(
         raise HTTPException(status_code=502, detail=f"Forecast model error: {str(e)}")
 
     # Performance monitoring log
+    model_type = model_result.get("model_type", "Unknown")
     training_time = model_result.get("training_time", 0)
     is_cached = model_result.get("cached", False)
     logger.info(
-        f"FORECAST_PERFORMANCE: dataset_id={dataset.id} rows={dataset.row_count} "
+        f"🤷 FORECAST_PERFORMANCE: model={model_type} dataset_id={dataset.id} rows={dataset.row_count} "
         f"duration={training_time}s cached={is_cached} user_id={current_user.id}"
     )
 
@@ -86,14 +105,14 @@ async def run_forecast(
         parameters_json=payload.model_dump_json(), # Serialize the request parameters for record-keeping
         result_json=json.dumps(model_result),
     )
-    db.add(forecast)
-    await db.commit()
-    await db.refresh(forecast)
+    db.add(forecast) # must add before commit to generate ID and timestamp for the forecast result
+    await db.commit() # Commit to generate ID and timestamp for the forecast result.
+    await db.refresh(forecast) # Refresh to get the generated ID and timestamp and any other DB defaults
 
     # Dynamic mapping: Merge DB info with all fields returned by the model service
     response_data = {
         "id": forecast.id,
-        "name": getattr(forecast, "name", None),
+        # "name": getattr(forecast, "name", None), # Use getattr to safely access the name attribute if it exists
         "dataset_id": payload.dataset_id,
         "dataset_name": dataset.filename,
         "dataset_row_count": dataset.row_count,
@@ -102,7 +121,7 @@ async def run_forecast(
         **model_result
     }
 
-    return ForecastResponse(**response_data)
+    return ForecastResponse(**response_data) # Unpack the merged data into the response model, allowing for dynamic fields from the model result
 
 
 @router.post("/scenarios", response_model=ScenarioResponse)

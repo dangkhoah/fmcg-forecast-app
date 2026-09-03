@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useBlocker } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Settings as SettingsIcon, Save, RotateCcw, Calendar, AlertTriangle, X, Undo, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RotateCcw, Calendar, AlertTriangle, Undo, Info } from 'lucide-react';
 
 const getStoredOrDefault = (key, defaultValue) => {
   const storedValue = localStorage.getItem(key);
@@ -20,7 +19,6 @@ const DATE_PRESETS = [
 export default function Settings() {
   const [dateFormat, setDateFormat] = useState(() => getStoredOrDefault('fmcg_date_format', ''));
   const [savedFormat, setSavedFormat] = useState(dateFormat);
-  const [showBlockerModal, setShowBlockerModal] = useState(false);
   const [error, setError] = useState('');
 
   const validateFormat = (value) => {
@@ -47,32 +45,10 @@ export default function Settings() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  // Handle SPA-level navigation (clicking links inside the app)
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname
-  );
-
-  useEffect(() => {
-    if (blocker.state === "blocked") {
-      setShowBlockerModal(true);
-    }
-  }, [blocker.state]);
-
   // Validate whenever input changes
   useEffect(() => {
     setError(validateFormat(dateFormat));
   }, [dateFormat]);
-
-  const handleAbortNavigation = () => {
-    setShowBlockerModal(false);
-    blocker.reset();
-  };
-
-  const handleConfirmNavigation = () => {
-    setShowBlockerModal(false);
-    blocker.proceed();
-  };
 
   const handleDiscard = () => {
     setDateFormat(savedFormat);
@@ -100,34 +76,6 @@ export default function Settings() {
 
   return (
     <div>
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scaleIn {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .modal-overlay {
-          animation: fadeIn 0.2s ease-out;
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-        .modal-content {
-          animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-          max-width: 400px;
-          width: 90%;
-        }
-      `}</style>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>System Configuration</h1>
       <div className="card" style={{ maxWidth: '600px' }}>
         <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -191,32 +139,12 @@ export default function Settings() {
             <RotateCcw size={18} /> Reset to Defaults
           </button>
         </div>
-      </div>
-
-      {showBlockerModal && (
-        <div className="modal-overlay" onClick={handleAbortNavigation}>
-          <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center', padding: '32px' }}>
-            <div style={{ 
-              width: '56px', height: '56px', backgroundColor: '#fee2e2', borderRadius: '50%', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' 
-            }}>
-              <AlertTriangle size={28} color="#ef4444" />
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Unsaved Changes</h3>
-            <p style={{ color: '#64748b', marginBottom: 28, lineHeight: 1.5 }}>
-              You have modified the date format settings. If you leave now, your changes will be lost.
-            </p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-secondary" onClick={handleAbortNavigation} style={{ flex: 1, justifyContent: 'center' }}>
-                Stay on Page
-              </button>
-              <button className="btn btn-danger" onClick={handleConfirmNavigation} style={{ flex: 1, justifyContent: 'center' }}>
-                Leave Anyway
-              </button>
-            </div>
+        {isDirty && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, padding: '8px 12px', background: '#fef3c7', borderRadius: 6, fontSize: 13, color: '#92400e' }}>
+            <AlertTriangle size={16} /> Unsaved changes — don't forget to save before leaving the page.
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

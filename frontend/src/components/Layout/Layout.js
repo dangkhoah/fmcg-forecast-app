@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BarChart3, Upload, TrendingUp, GitCompare, LogOut, Package, ScrollText, Settings } from 'lucide-react';
+import { BarChart3, Upload, TrendingUp, GitCompare, LogOut, Package, ScrollText, Settings, Cpu } from 'lucide-react';
 import './Layout.css';
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/scenarios', icon: GitCompare, label: 'Scenarios' },
   { to: '/policy', icon: ScrollText, label: 'Policy Dashboard' }, // Added Policy Dashboard
   { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/train-model', icon: Cpu, label: 'Train Model' },
 ];
 
 export default function Layout() {

@@ -1,6 +1,4 @@
 chcp 65001 | Out-Null
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
-$OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 Write-Host "=== FMCG Sales Forecast App (Start-Process) ===" -ForegroundColor Cyan
 Write-Host ""

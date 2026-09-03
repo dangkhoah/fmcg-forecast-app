@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-model_dir = r"d:\Namitech_Next\fmcg-forecast-app\model-service"
+model_dir = r"d:\Apps\fmcg-forecast-app\model-service"
 price_path = os.path.join(model_dir, "reference", "product_prices.csv")
 week_path = os.path.join(model_dir, "reference", "date_to_week_id_map.csv")
 train_path = os.path.join(model_dir, "reference", "train_data.csv")

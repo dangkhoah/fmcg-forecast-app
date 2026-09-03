@@ -5,14 +5,15 @@ from pydantic import BaseModel
 class ForecastRequest(BaseModel):
     dataset_id: str
     forecast_periods: int = 12
-    seasonality_period: int = 12
+    seasonality_period: int = 52
     confidence_level: float = 0.95
     model_type: str = "ExtraTrees"
     frequency: str | None = None
     force_retrain: bool = False
     aggregation: str | None = None
     date_format: str | None = None
-    original_filename: str | None = None # Add this line
+    original_filename: str | None = None
+    trained_model_key: str | None = None
     additional_params: dict | None = None
 
 
@@ -33,6 +34,7 @@ class ForecastResponse(BaseModel):
     training_time: float | None = None
     detected_freq: str | None = None
     mape: float | None = None
+    model_name: str | None = None
 
 
 class ScenarioCreate(BaseModel):
