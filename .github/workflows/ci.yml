@@ -35,4 +35,6 @@ jobs:
       - name: Run Tests
         run: |
           # Run tests with PYTHONPATH set to the backend and model-service directories
-          PYTHONPATH=backend:model-service pytest tests/
+          # PYTHONPATH=backend:model-service pytest tests/
+          cd model-service
+          PYTHONPATH=. pytest ../tests/        
