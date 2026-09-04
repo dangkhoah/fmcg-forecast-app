@@ -157,9 +157,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FMCG Sales Forecast API", lifespan=lifespan)
 
+origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")] if settings.CORS_ORIGINS else ["*"]
+if "http://localhost:3000" not in origins and "*" not in origins:
+    origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], # Permission granted here
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

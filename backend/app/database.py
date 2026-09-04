@@ -4,12 +4,13 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+engine_kwargs = {"echo": settings.LOG_SQL if hasattr(settings, "LOG_SQL") else False}
+if is_sqlite:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine_kwargs["poolclass"] = StaticPool
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
