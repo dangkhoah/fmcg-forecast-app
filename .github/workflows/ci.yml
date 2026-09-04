@@ -36,6 +36,7 @@ jobs:
         run: |
           # Run tests with PYTHONPATH set to the backend and model-service directories
           # PYTHONPATH=backend:model-service pytest tests/
+<<<<<<< HEAD
 
       - name: Run Backend Tests
         run: |
@@ -46,3 +47,7 @@ jobs:
         run: |
           cd model-service
           PYTHONPATH=. pytest ../tests/test_model_feature_columns.py
+=======
+          cd model-service
+          PYTHONPATH=../backend:. pytest ../tests/
+>>>>>>> 122fa489927d35b139104c111b7135c8b79d6d49

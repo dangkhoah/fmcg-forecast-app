@@ -149,6 +149,13 @@ def test_predict_endpoint_force_retrain(csv_in_backend_uploads):
     """The /predict endpoint returns a valid PredictResponse when
     force_retrain=True (exercises the full request/response cycle)."""
     from fastapi.testclient import TestClient
+    
+    # Ensure model-service is in the path
+    model_service_path = os.path.join(os.path.dirname(__file__), "..", "model-service")
+    if model_service_path not in sys.path:
+        sys.path.insert(0, model_service_path)
+    
+    # Import the model-service app, NOT the backend app
     from app.main import app
 
     client = TestClient(app)
