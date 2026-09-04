@@ -25,10 +25,16 @@ const DEFAULT_HYPER_PARAMS = {
 };
 
 const fetchAvailableModels = async () => {
-  const res = await fetch(`${API_BASE_URL}/available-models`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load models');
-  const data = await res.json();
-  return data.models || [];
+  try {
+    const res = await fetch(`${API_BASE_URL}/available-models`, { headers: getAuthHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.models && data.models.length > 0) return data.models;
+    }
+  } catch (e) {
+    console.warn('Backend model-service unavailable, falling back to default models:', e);
+  }
+  return Object.keys(DEFAULT_HYPER_PARAMS);
 };
 
 const trainSingleModel = async (payload, signal, onEvent) => {
