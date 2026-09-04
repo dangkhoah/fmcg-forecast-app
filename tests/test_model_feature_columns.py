@@ -156,7 +156,8 @@ def test_predict_endpoint_force_retrain(csv_in_backend_uploads):
     """The /predict endpoint returns a valid PredictResponse when
     force_retrain=True (exercises the full request/response cycle)."""
     from fastapi.testclient import TestClient
-    from app.main import app
+    from app.main import app as fastapi_app
+    app = fastapi_app
 
     client = TestClient(app)
     filename = os.path.basename(csv_in_backend_uploads)
