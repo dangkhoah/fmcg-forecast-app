@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { datasets as datasetsApi, forecast as forecastApi, exportApi } from '../services/api';
+import { datasets as datasetsApi, forecast as forecastApi, exportApi, API_BASE_URL } from '../services/api';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -85,7 +85,7 @@ export default function Forecast() {
 
   useEffect(() => {
     datasetsApi.list().then((r) => setDatasets(r.data));
-    fetch('/api/forecast/trained-models', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    fetch(`${API_BASE_URL}/forecast/trained-models`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => r.ok ? r.json() : { models: [] })
       .then((d) => setTrainedModels(d.models || []))
       .catch(() => {});
@@ -432,7 +432,7 @@ export default function Forecast() {
 
   const loadVersions = async () => {
     try {
-      const res = await fetch('/api/forecast/versions/', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${API_BASE_URL}/forecast/versions/`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setVersions(await res.json());
     } catch (_) {}
   };
@@ -440,7 +440,7 @@ export default function Forecast() {
   const saveVersion = async () => {
     if (!versionLabel.trim() || !result) return;
     try {
-      await fetch('/api/forecast/versions/save', {
+      await fetch(`${API_BASE_URL}/forecast/versions/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({
@@ -462,7 +462,7 @@ export default function Forecast() {
 
   const deleteVersion = async (id) => {
     try {
-      await fetch(`/api/forecast/versions/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      await fetch(`${API_BASE_URL}/forecast/versions/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       loadVersions();
     } catch (_) {}
   };
@@ -471,7 +471,7 @@ export default function Forecast() {
     if (selectedVersionIds.length < 2) return;
     setLoadingVersions(true);
     try {
-      const res = await fetch(`/api/forecast/versions/compare?ids=${selectedVersionIds.join(',')}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`${API_BASE_URL}/forecast/versions/compare?ids=${selectedVersionIds.join(',')}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) {
         setComparisonData(await res.json());
         setShowVersionCompare(true);
