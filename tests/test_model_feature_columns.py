@@ -8,6 +8,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+# If app.models was already imported from backend, remove it from cache
+if 'app' in sys.modules:
+    del sys.modules['app']
+if 'app.models' in sys.modules:
+    del sys.modules['app.models']
+if 'app.main' in sys.modules:
+    del sys.modules['app.main']
+
 # Add model-service to path
 model_service_path = os.path.join(os.path.dirname(__file__), "..", "model-service")
 # sys.path.append(model_service_path)
