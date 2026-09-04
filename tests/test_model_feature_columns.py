@@ -7,9 +7,19 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import pytest
+import importlib
 
-# sys.path.append(os.path.join(os.path.dirname(__file__), "..", "model-service"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "model-service"))
+# Add model-service to path
+model_service_path = os.path.join(os.path.dirname(__file__), "..", "model-service")
+# sys.path.append(model_service_path)
+sys.path.insert(0, model_service_path)
+
+# If app.models was already imported from backend, remove it from cache
+if 'app' in sys.modules:
+    del sys.modules['app']
+if 'app.models' in sys.modules:
+    del sys.modules['app.models']
+
 
 from app.models import ForecastEngine
 
