@@ -59,7 +59,7 @@ def test_sell_price_absent_when_model_trained_without_ref_data(training_csv):
 
     train_engine.train(training_csv, seasonality_period=4, force_retrain=True)
     assert "sell_price" not in train_engine.feature_columns
-    len(assert train_engine.feature_columns) == 8
+    assert len(train_engine.feature_columns) == 8
 
     train_engine.persist_model(model_key)
 
