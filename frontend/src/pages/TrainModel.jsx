@@ -6,7 +6,7 @@ import {
   Title, Tooltip, Legend,
 } from 'chart.js';
 import { Cpu, Play, StopCircle, RefreshCcw, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2, Search, Clock, Database, Brain, BarChart3, CheckCircle, XCircle, Layers, SkipForward, ChevronDown, ChevronUp, Download, Plus, ToggleLeft, ToggleRight, Trash } from 'lucide-react';
-import { datasets as datasetsApi } from '../services/api';
+import { datasets as datasetsApi, API_BASE_URL } from '../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -25,14 +25,14 @@ const DEFAULT_HYPER_PARAMS = {
 };
 
 const fetchAvailableModels = async () => {
-  const res = await fetch('/api/available-models', { headers: getAuthHeaders() });
+  const res = await fetch(`${API_BASE_URL}/available-models`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error('Failed to load models');
   const data = await res.json();
   return data.models || [];
 };
 
 const trainSingleModel = async (payload, signal, onEvent) => {
-  const res = await fetch('/api/train', {
+  const res = await fetch(`${API_BASE_URL}/train`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(payload),
@@ -117,7 +117,7 @@ export default function TrainModel() {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/training/history', { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/training/history`, { headers: getAuthHeaders() });
       if (res.ok) setHistory(await res.json());
       else console.warn('fetchHistory failed:', res.status, await res.text().catch(()=>''));
     } catch (e) { console.warn('fetchHistory error:', e); }
@@ -255,7 +255,7 @@ export default function TrainModel() {
 
   const saveTrainingResult = async (modelName, result, params) => {
     try {
-      await fetch('/api/training/save', {
+      await fetch(`${API_BASE_URL}/training/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
@@ -275,7 +275,7 @@ export default function TrainModel() {
 
   const clearCache = async () => {
     try {
-      await fetch('/api/clear-cache', { method: 'POST', headers: getAuthHeaders() });
+      await fetch(`${API_BASE_URL}/clear-cache`, { method: 'POST', headers: getAuthHeaders() });
       alert('Cache cleared');
     } catch (e) {
       alert('Failed to clear cache');
@@ -284,7 +284,7 @@ export default function TrainModel() {
 
   const fetchSchedules = async () => {
     try {
-      const res = await fetch('/api/schedules/', { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/schedules/`, { headers: getAuthHeaders() });
       if (res.ok) setSchedules(await res.json());
     } catch (_) {}
   };
@@ -292,7 +292,7 @@ export default function TrainModel() {
   const createSchedule = async () => {
     if (!scheduleForm.name || !selectedDataset) return;
     try {
-      await fetch('/api/schedules/', {
+      await fetch(`${API_BASE_URL}/schedules/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
@@ -314,7 +314,7 @@ export default function TrainModel() {
 
   const toggleSchedule = async (s) => {
     try {
-      await fetch(`/api/schedules/${s.id}`, {
+      await fetch(`${API_BASE_URL}/schedules/${s.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ is_active: !s.is_active }),
@@ -325,7 +325,7 @@ export default function TrainModel() {
 
   const deleteSchedule = async (id) => {
     try {
-      await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      await fetch(`${API_BASE_URL}/schedules/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
       fetchSchedules();
     } catch (_) {}
   };
@@ -346,7 +346,7 @@ export default function TrainModel() {
 
   const handleBulkDelete = async () => {
     for (const id of selectedHistoryIds) {
-      await fetch(`/api/training/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      await fetch(`${API_BASE_URL}/training/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
     }
     setSelectedHistoryIds([]);
     fetchHistory();
@@ -366,7 +366,7 @@ export default function TrainModel() {
 
   const deleteHistoryRecord = async (id) => {
     try {
-      await fetch(`/api/training/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      await fetch(`${API_BASE_URL}/training/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
       setHistory((prev) => prev.filter((h) => h.id !== id));
     } catch (_) {}
   };
