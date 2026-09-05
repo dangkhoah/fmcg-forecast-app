@@ -52,6 +52,12 @@ async def start_training(
         body["file_path"] = resolved_path
         body["dataset_name"] = dataset.filename
         body["dataset_row_count"] = dataset.row_count
+        if os.path.exists(resolved_path):
+            try:
+                with open(resolved_path, "r", encoding="utf-8", errors="ignore") as f:
+                    body["file_content"] = f.read()
+            except Exception as e:
+                logger.warning(f"Could not read dataset file content: {e}")
 
     async def stream_events():
         async with httpx.AsyncClient(timeout=None) as c:

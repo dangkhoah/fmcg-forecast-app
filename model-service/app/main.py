@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import time
 from fastapi import FastAPI, HTTPException
@@ -48,6 +49,7 @@ engine = ForecastEngine() # lives for the entire duration of the application
 
 class PredictRequest(BaseModel):
     file_path: str
+    file_content: str | None = None
     forecast_periods: int = 12
     seasonality_period: int = 12
     confidence_level: float = 0.95
@@ -89,16 +91,21 @@ async def clear_cache():
 @app.post("/predict", response_model=PredictResponse)
 async def predict(payload: PredictRequest):
     try:
-        # Always resolve the dataset file in the current backend/uploads directory.
-        # The DB may store absolute paths from a previous machine, so we extract
-        # just the filename and look it up in the known uploads location.
-        uploads_dir = Path(__file__).resolve().parents[2] / "backend" / "uploads"
-        # Use the original filename if provided, otherwise fall back to extracting from path
-        filename = Path(payload.file_path).name # extract just the filename uploaded by the user
+        local_uploads = Path(__file__).resolve().parent.parent / "uploads"
+        local_uploads.mkdir(exist_ok=True)
+        filename = Path(payload.file_path).name if payload.file_path else "dataset.csv"
+        resolved_path = str(local_uploads / filename)
+
+        if payload.file_content:
+            with open(resolved_path, "w", encoding="utf-8") as f:
+                f.write(payload.file_content)
+        elif not os.path.exists(resolved_path):
+            sibling_dir = Path(__file__).resolve().parents[2] / "backend" / "uploads"
+            sibling_path = sibling_dir / filename
+            if sibling_path.exists():
+                resolved_path = str(sibling_path)
+
         logger.info(f"Received prediction request for: {payload.original_filename}/{filename}")
-        logger.info(f"Received prediction request (payload): {payload.model_dump_json()}")
-        resolved_path = str(uploads_dir / filename)
-        logger.info(f"File path from payload: {payload.file_path}")
         logger.info(f"Resolved dataset path: {resolved_path}")
         start_time = time.time()
         

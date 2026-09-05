@@ -20,6 +20,7 @@ class TrainRequest(BaseModel):
     hyper_params: Dict[str, Any] = Field(default_factory=dict)
     model_save_name: Optional[str] = None
     file_path: str = ""
+    file_content: Optional[str] = None
     seasonality_period: int = 52
     date_format: Optional[str] = None
 
@@ -55,6 +56,22 @@ async def train_generator(req: TrainRequest):
         return
 
     start_time = time.time()
+
+    if req.file_content:
+        from pathlib import Path
+        local_uploads = Path(__file__).resolve().parents[2] / "uploads"
+        local_uploads.mkdir(exist_ok=True)
+        filename = os.path.basename(req.file_path) if req.file_path else "dataset.csv"
+        save_path = str(local_uploads / filename)
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(req.file_content)
+        req.file_path = save_path
+    elif req.file_path and not os.path.exists(req.file_path):
+        from pathlib import Path
+        filename = os.path.basename(req.file_path)
+        sibling_path = Path(__file__).resolve().parents[3] / "backend" / "uploads" / filename
+        if sibling_path.exists():
+            req.file_path = str(sibling_path)
 
     yield emit("preparing", 5, message="Preparing training data...")
     await asyncio.sleep(0)

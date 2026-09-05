@@ -85,6 +85,13 @@ async def run_forecast(
         **(payload.additional_params or {}),
     }
 
+    if os.path.exists(actual_path):
+        try:
+            with open(actual_path, "r", encoding="utf-8", errors="ignore") as f:
+                model_input["file_content"] = f.read()
+        except Exception as e:
+            logger.warning(f"Could not read file_content for model_input: {e}")
+
     try:
         model_result = await call_forecast_model(model_input)
     except Exception as e:
