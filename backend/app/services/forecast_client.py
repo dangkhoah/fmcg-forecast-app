@@ -19,7 +19,8 @@ async def verify_model_service_connectivity() -> bool:
     """Checks if the model service is reachable and responding."""
     client = get_client()
     # Remove the path from the base URL and append health check
-    base_url = str(settings.FORECAST_API_URL).split("/predict")[0]
+    # base_url = str(settings.FORECAST_API_URL).split("/predict")[0]
+    base_url = str(settings.MODEL_SERVICE_URL)
     health_url = f"{base_url}/health"
     try:
         resp = await client.get(health_url, timeout=5.0)
@@ -41,7 +42,7 @@ async def call_forecast_model(model_input: dict) -> dict:
     client = get_client()
     try:
         resp = await client.post(
-            settings.FORECAST_API_URL,
+            f"{settings.MODEL_SERVICE_URL}/predict",
             json=model_input,
             timeout=settings.MODEL_SERVICE_TIMEOUT
         )
