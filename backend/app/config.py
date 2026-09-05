@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-this-to-a-random-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    FORECAST_API_URL: str = "http://localhost:8001/predict"
     MODEL_SERVICE_URL: str = "http://localhost:8001"
+    FORECAST_API_URL: str = f"{MODEL_SERVICE_URL}/predict"
     UPLOAD_DIR: str = str(ROOT_DIR / "uploads")
     MODEL_SERVICE_TIMEOUT: int = 120
     CORS_ORIGINS: str = "*"

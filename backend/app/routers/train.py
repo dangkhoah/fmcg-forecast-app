@@ -24,7 +24,7 @@ MODEL_SERVICE_BASE = str(settings.MODEL_SERVICE_URL).rstrip("/")
 async def get_available_models(current_user: User = Depends(get_current_user)):
     client = get_client()
     try:
-        resp = await client.get(f"{MODEL_SERVICE_BASE}/available-models", timeout=45.0)
+        resp = await client.get(f"{MODEL_SERVICE_BASE}/available-models", timeout=45.0) # Increased backend HTTP timeout from 10s to 45s so cold-starting Model Services on Render have ample time to respond.
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
